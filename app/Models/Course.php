@@ -97,4 +97,10 @@ class Course extends Model
         return $this->hasMany(Topic::class);
     }
 
+    public function bookings()
+    {
+        // bookings テーブルに course_id がある前提
+        return $this->hasMany(Booking::class);
+    }
+
 }

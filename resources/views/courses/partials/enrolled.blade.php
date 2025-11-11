@@ -54,26 +54,26 @@
 
     {{-- セクションごとのアコーディオン --}}
     <div class="accordion mt-3" id="courseAccordion">
-        @foreach($course->sections ?? [] as $sectionIndex => $section)
+        @foreach($course->topics as $topicIndex => $topic)
             <div class="accordion-item">
-                <h2 class="accordion-header" id="heading{{ $section->id }}">
+                <h2 class="accordion-header" id="heading{{ $topic->id }}">
                     <button class="accordion-button collapsed" type="button" 
                             data-bs-toggle="collapse" 
-                            data-bs-target="#collapse{{ $section->id }}" 
+                            data-bs-target="#collapse{{ $topic->id }}" 
                             aria-expanded="false" 
-                            aria-controls="collapse{{ $section->id }}">
-                        {{ $loop->iteration }}. {{ $section->title }}
+                            aria-controls="collapse{{ $topic->id }}">
+                        {{ $loop->iteration }}. {{ $topic->title }}
                         <span class="ms-2 text-muted small">
-                            {{ $sectionProgress[$section->id]['completed'] ?? 0 }}/{{ $sectionProgress[$section->id]['total'] ?? 0 }}
+                            {{ $topicProgress[$topic->id]['completed'] ?? 0 }}/{{ $topicProgress[$topic->id]['total'] ?? 0 }}
                         </span>
                     </button>
                 </h2>
-                <div id="collapse{{ $section->id }}" class="accordion-collapse collapse" 
-                     aria-labelledby="heading{{ $section->id }}" 
+                <div id="collapse{{ $topic->id }}" class="accordion-collapse collapse" 
+                     aria-labelledby="heading{{ $topic->id }}" 
                      data-bs-parent="#courseAccordion">
                     <div class="accordion-body">
                         <ul class="list-unstyled mb-0">
-                            @foreach($section->lessons as $lesson)
+                            @foreach($topic->lessons as $lesson)
                                 <li class="d-flex align-items-center mb-2">
                                     <form method="POST" 
                                           action="{{ route('lessons.toggle', [$course->id, $lesson->id]) }}"

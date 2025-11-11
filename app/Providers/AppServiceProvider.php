@@ -4,6 +4,7 @@ namespace App\Providers;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -79,5 +80,26 @@ class AuthServiceProvider extends ServiceProvider
                 ? Response::allow()
                 : Response::deny('This page is for basic user.');
         });
+
+        Gate::define('view-student-history', function (User $user, User $student) {
+        // 本人
+        if ($user->id === $student->id) {
+            return true;
+        }
+
+        // Admin
+        if ((int) $user->role_id === 1) {
+            return true;
+        }
+
+        // Teacher（全教師に見せて良いならこれでOK）
+        if ((int) $user->role_id === 2) {
+            return true;
+        }
+
+        return false;
+    });
+
+    Paginator::useBootstrapFive(); // Bootstrap5の場合
     }
 }

@@ -34,7 +34,11 @@
                 $meetingUrl = $teacherModel->meeting_url;
                 $courseId = $upNext->course->id ?? null;
                 $teacherId = $teacherModel->id ?? null;
-                $iconUrl = $upNext->course->icon_url ?? asset('images/placeholder-course.png');
+                // $iconUrl = $upNext->course->image_url ?? asset('images/placeholder-course.png');
+                $iconUrl =
+                    $upNext->course && $upNext->course->image_url
+                        ? asset('storage/' . ltrim($upNext->course->image_url, '/'))
+                        : asset('images/placeholder-course.png');
 
                 $whenStr = $dt->format('D, M j H:i') . '–' . $end->format('H:i');
                 $isToday = $dt->isToday();
@@ -47,6 +51,7 @@
                     <div class="d-flex align-items-center gap-3 flex-wrap">
 
                         {{-- 左：アイコン --}}
+
                         <img src="{{ $iconUrl }}" alt="" class="rounded-3 border flex-shrink-0"
                             style="width:48px;height:48px;object-fit:cover;">
 
@@ -100,7 +105,7 @@
                         <div class="d-flex gap-2 ms-auto">
                             @if ($meetingUrl)
                                 <a href="{{ $meetingUrl }}" target="_blank" rel="noopener"
-                                    class="btn btn-primary btn-sm px-3">Enter</a>
+                                    class="btn btn-primary btn-sm px-3">Enter classroom</a>
                             @else
                                 <button type="button" class="btn btn-secondary btn-sm px-3" disabled>No meeting
                                     URL</button>
@@ -252,7 +257,7 @@
 
                             {{-- <div class="row"> --}}
                             {{-- ▼ 先生選択アクション（常に表示） --}}
-                            <div id="teacherActions" class="mt-3">
+                            <div id="teacherActions" class="">
                                 <label class="form-label fw-semibold d-block mb-2">Teacher</label>
                                 <div class="d-flex gap-2 align-items-center">
                                     {{-- デフォルトで "Automatically assigned" 状態 --}}
@@ -331,16 +336,16 @@
 
                                 function normalizeYmd(input) {
                                     if (!input) return '';
-                                    if (input instanceof Date) {
-                                        const y = input.getFullYear();
-                                        const m = String(input.getMonth() + 1).padStart(2, '0');
-                                        const d = String(input.getDate()).padStart(2, '0');
-                                        return `${y}-${m}-${d}`;
+
+                                    const s = String(input).trim();
+
+                                    // "YYYY-MM-DD" または "YYYY-MM-DD ..." の先頭10文字だけを使う
+                                    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                    if (!m) {
+                                        return '';
                                     }
-                                    const s = String(input);
-                                    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-                                    const dt = new Date(s);
-                                    return isNaN(dt) ? '' : normalizeYmd(dt);
+
+                                    return `${m[1]}-${m[2]}-${m[3]}`;
                                 }
 
                                 function normalizeHms(t) {
@@ -883,8 +888,8 @@
                     --fc-today-bg-color: rgba(13, 110, 253, .08);
 
                     /* --fc-event-bg-color: rgba(13, 110, 253, .10);
-                                                                                                                                                                                                                                                --fc-event-border-color: rgba(13, 110, 253, .40);
-                                                                                                                                                                                                                                                --fc-event-text-color: #0d6efd; */
+                                                                                                                                                                                                                                                                                --fc-event-border-color: rgba(13, 110, 253, .40);
+                                                                                                                                                                                                                                                                                --fc-event-text-color: #0d6efd; */
 
                     font-size: 0.90rem;
                     /* カレンダー内を少し小さめ */
@@ -1363,8 +1368,11 @@
                     $course = $b->course->title ?? 'Course';
                     $topic = $b->topic->name ?? 'Topic';
                     $teacher = $b->teacher->name ?? 'Teacher';
-                    $iconUrl = $b->course->icon_url ?? asset('images/placeholder-course.png');
-
+                    // $iconUrl = $b->course->image_url ?? asset('images/placeholder-course.png');
+                    $iconUrl =
+                        $b->course && $b->course->image_url
+                            ? asset('storage/' . ltrim($b->course->image_url, '/'))
+                            : asset('images/placeholder-course.png');
                     // 例: Wed, Oct 29 18:00–18:50
                     $whenStr = $dt->format('D, M j H:i') . '–' . $end->format('H:i');
 
@@ -1378,8 +1386,24 @@
                         'missed', 'absent' => 'text-bg-danger',
                         default => 'text-bg-secondary',
                     };
-                    $courseId = $b->course->id ?? null;
+                    // $courseId = $b->course->id ?? null;
                     $teacherId = $b->teacher->id ?? null;
+                    $statusRaw = trim((string) ($b->report->status ?? ''));
+                    $statusLower = strtolower($statusRaw);
+
+                    if ($statusLower === 'canceled by teacher') {
+                        $statusClass = 'badge bg-dark text-white';
+                    } elseif ($statusRaw !== '') {
+                        $statusClass = 'badge bg-success text-white';
+                    } else {
+                        $statusClass = '';
+                    }
+
+                    $nextTopName = $b->report?->nextTopic?->name ?? '—';
+                    $feedback = $b->report->feedback ?? '—';
+
+                    $courseId = $b->course->id ?? null;
+                    $teacherIdRow = $b->teacher->id ?? null;
                 @endphp
 
                 <div class="card shadow-sm">
@@ -1391,35 +1415,43 @@
                                 style="width:48px;height:48px;object-fit:cover;">
 
                             {{-- Middle: title + meta --}}
-                            <div class="fw-semibold text-truncate">
-                                @if ($courseId)
-                                    <a href="{{ route('courses.show', ['course' => $courseId]) }}"
-                                        class="text-dark text-decoration-none">
-                                        {{ $course }}
-                                    </a>
-                                @else
-                                    {{ $course }}
-                                @endif
-                                <span class="text-body-secondary">/</span>
-                                {{ $topic }}
-                            </div>
-
-                            <div class="d-flex align-items-center flex-wrap gap-2 mt-1">
-                                <span class="d-inline-flex align-items-center">
-                                    <i class="fa-regular fa-calendar me-1"></i>{{ $whenStr }}
-                                </span>
-
-                                <span>
-                                    with
-                                    @if ($teacherId)
-                                        <a href="{{ route('teachers.profile', ['user_id' => $teacherId]) }}"
+                            {{-- Middle: title + meta（Up next と同じ構造） --}}
+                            <div class="min-w-0 flex-grow-1">
+                                <div class="fw-semibold text-truncate">
+                                    @if ($courseId)
+                                        <a href="{{ route('courses.show', ['course' => $courseId]) }}"
                                             class="text-dark text-decoration-none">
-                                            {{ $teacher }}
+                                            {{ $course }}
                                         </a>
                                     @else
-                                        <span class="text-body">{{ $teacher }}</span>
+                                        {{ $course }}
                                     @endif
-                                </span>
+                                    <span class="text-body-secondary">/</span>
+                                    {{ $topic }}
+                                </div>
+
+                                <div class="d-flex align-items-center flex-wrap gap-2 mt-1">
+                                    <span class="d-inline-flex align-items-center">
+                                        <i class="fa-regular fa-calendar me-1"></i>{{ $whenStr }}
+                                    </span>
+
+                                    <span>
+                                        with Teacher
+                                        @if ($teacherId)
+                                            <a href="{{ route('teachers.profile', ['user_id' => $teacherId]) }}"
+                                                class="text-dark text-decoration-none fw-bold">
+                                                {{ $teacher }}
+                                            </a>
+                                        @else
+                                            <span class="text-body fw-bold">{{ $teacher }}</span>
+                                        @endif
+                                       @if ($statusRaw !== '')
+                                            <span class="{{ $statusClass }} ms-2">
+                                                {{ $statusRaw }}
+                                            </span>
+                                        @endif
+                                    </span>
+                                </div>
                             </div>
 
                             {{-- Right: Details button (opens modal) --}}
@@ -1575,7 +1607,7 @@
 
         {{-- View more --}}
         <div class="text-center mt-3">
-            <a href="{{ route('students.lessonhistory') }}" class="btn btn-light border">
+            <a href="{{ route('students.lessonhistory', ['student' => Auth::id()]) }}" class="btn btn-light border">
                 View more
             </a>
         </div>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Topic;
 use App\Models\Course;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;  
 
 class CourseTopicController extends Controller
 {
@@ -44,24 +45,31 @@ class CourseTopicController extends Controller
         )->with('success', $new ? 'All courses & topics activated.' : 'All courses & topics deactivated.');
     }
 
+ public function toggleCourse(Request $request, Course $course)
+    {
+        DB::transaction(function () use ($course) {
+            $course->status = $course->status ? 0 : 1;
+            $course->save();
 
-    // public function toggle(Request $request, Topic $topic)
-    // {
-    //     // 0/1 のトグル or 明示指示（to=active/deactive）
-    //     $to = strtolower($request->input('to', ''));
-    //     $current = (int) ($topic->status ?? 0);
+            // コース配下のトピックもコースに合わせて更新
+            $course->topics()->update(['status' => $course->status]);
+        });
 
-    //     if ($to === 'active') {
-    //         $new = 1;
-    //     } elseif ($to === 'deactive' || $to === 'inactive') {
-    //         $new = 0;
-    //     } else {
-    //         $new = $current ? 0 : 1;
-    //     }
+        return redirect()->to(
+            route('admin.courses.index', ['open' => $course->id]) . '#heading-' . $course->id
+        )->with('success', $course->status ? 'Course & all topics activated.' : 'Course & all topics deactivated.');
+    }
 
-    //     $topic->status = $new;
-    //     $topic->save();
+     public function toggleTopic(Request $request, Topic $topic)
+    {
+        $topic->status = $topic->status ? 0 : 1;
+        $topic->save();
 
-    //     return back()->with('success', $new ? 'Topic activated.' : 'Topic deactivated.');
-    // }
+        // 親コースのアコーディオンを開いたまま戻す
+        $courseId = $topic->course_id;
+
+        return redirect()->to(
+            route('admin.courses.index', ['open' => $courseId]) . '#heading-' . $courseId
+        )->with('success', $topic->status ? 'Topic activated.' : 'Topic deactivated.');
+    }
 }

@@ -7,8 +7,9 @@
         {{-- CSRF（fetch用） --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
         @if (!$hasMeetingUrl)
-            <div class="alert alert-warning py-2 px-3 mb-2">
-                To open a slot, set your meeting URL in <strong>Profile</strong>.
+            <div class="alert alert-danger py-2 px-3 mb-2">
+                To open a slot, set your meeting URL in <strong><a href="{{ route('teachers.profile', Auth::id()) }}"
+                        class="text-decoration-none" style="color: inherit;">Profile</a></strong>.
             </div>
         @endif
 
@@ -85,7 +86,12 @@
                                 <div class="small text-muted">Student</div>
                                 <div class="fw-semibold">
                                     <a id="rpt-student-link" href="javascript:void(0)"
-                                        class="link-dark text-decoration-none disabled-link">—</a>
+                                        class="link-dark text-decoration-none disabled-link">—</a><br>
+                                    {{-- ★ 追加: View history リンク（初期は非表示） --}}
+                                    <a id="rpt-student-history-link" href="#"
+                                        class="small text-decoration-none d-none" rel="noopener">
+                                        View history
+                                    </a>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -153,7 +159,12 @@
                     </div>
 
                     <div class="modal-footer gap-2">
-                        <button id="btn-save-report" type="button" class="btn btn-primary">Save report</button>
+                        {{-- Enter classroom ボタンを追加 --}}
+                        <a id="btn-enter-classroom" href="#" class="btn btn-primary" target="_blank"
+                            rel="noopener">
+                            Enter classroom
+                        </a>
+                        <button id="btn-save-report" type="button" class="btn btn-success">Save report</button>
                         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
                         {{-- <button id="btn-submit-cancel" type="button" class="btn btn-danger">Cancel booking</button> --}}
                     </div>
@@ -171,7 +182,9 @@
             data-report-update-url="{{ route('teachers.reports.update', ['booking' => '__ID__']) }}"
             data-student-url="{{ route('students.profile.show', ['user' => '__ID__']) }}"
             data-course-url="{{ route('courses.show', ['course' => '__ID__']) }}"
-            data-has-meeting-url="{{ $hasMeetingUrl ? 1 : 0 }}" style="min-height: 500px;"></div>
+            data-has-meeting-url="{{ $hasMeetingUrl ? 1 : 0 }}" style="min-height: 500px;"
+            data-student-history-url="{{ route('students.lessonhistory', ['student' => '__ID__']) }}"
+            data-meeting-url="{{ $hasMeetingUrl ? Auth::user()->meeting_url : '' }}" style="min-height: 500px;"></div>
     </section>
 @endsection
 
@@ -265,13 +278,27 @@
             const el = document.getElementById('teacherWeekCal');
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const hasMeetingUrl = (el.dataset.hasMeetingUrl === '1');
+            const meetingUrl = el.dataset.meetingUrl || '';
             const feed = el.dataset.feedUrl;
             const store = el.dataset.storeUrl;
             const delTpl = el.dataset.destroyUrl; // .../__ID__
             const bulk = el.dataset.bulkdelUrl;
             const cancelTpl = el.dataset.cancelUrl; // .../__ID__/cancel
+            const enterBtn = document.getElementById('btn-enter-classroom');
             const studentUrlTpl = el.dataset.studentUrl || '';
             const courseUrlTpl = el.dataset.courseUrl || '';
+            const studentHistoryUrlTpl = el.dataset.studentHistoryUrl || '';
+            if (enterBtn) {
+                if (meetingUrl) {
+                    enterBtn.href = meetingUrl;
+                    enterBtn.classList.remove('d-none');
+                } else {
+                    // URL 未設定なら押せないようにする（任意）
+                    enterBtn.href = '#';
+                    enterBtn.classList.add('disabled');
+                    enterBtn.classList.add('d-none'); // 完全に隠したい場合
+                }
+            }
 
             const ONE_HOUR_MS = 60 * 60 * 1000;
             const nowLocal = () => new Date();
@@ -815,22 +842,40 @@
 
                     // Studentリンク
                     const sLink = document.getElementById('rpt-student-link');
+                    const sHistory = document.getElementById('rpt-student-history-link');
+
                     if (sLink) {
                         if (student && student.name) {
                             sLink.textContent = student.name;
 
-                            // ルートテンプレ & id が揃っていればリンク有効化
+                            // プロフィールへのリンク（任意で有効化）
                             if (studentUrlTpl && student.id) {
                                 sLink.href = studentUrlTpl.replace('__ID__', student.id);
                                 sLink.classList.remove('disabled-link');
                             } else {
                                 sLink.href = 'javascript:void(0)';
-                                sLink.classList.add('disabled-link'); // クリック不可だが名前は表示
+                                sLink.classList.add('disabled-link');
+                            }
+
+                            // ★ View history の設定
+                            if (sHistory) {
+                                if (studentHistoryUrlTpl && student.id) {
+                                    sHistory.href = studentHistoryUrlTpl.replace('__ID__', student.id);
+                                    sHistory.classList.remove('d-none');
+                                } else {
+                                    sHistory.href = '#';
+                                    sHistory.classList.add('d-none');
+                                }
                             }
                         } else {
                             sLink.textContent = '—';
                             sLink.href = 'javascript:void(0)';
                             sLink.classList.add('disabled-link');
+
+                            if (sHistory) {
+                                sHistory.href = '#';
+                                sHistory.classList.add('d-none');
+                            }
                         }
                     }
 

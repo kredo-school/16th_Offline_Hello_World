@@ -39,8 +39,7 @@ class CourseController extends Controller
             'title' => 'required|string|max:255',
             'price' => 'nullable|numeric',
             'description' => 'nullable|string',
-            'category' => 'nullable|string|max:100',
-            'language' => 'required|string',
+            'category' => 'required|string|in:IT,English,Japanese',
             'level' => 'required|string',
             'image' => 'nullable|string', // Base64
         ]);
@@ -50,7 +49,6 @@ class CourseController extends Controller
         $course->price = $request->price ?? 0;
         $course->description = $request->description;
         $course->category = $request->category;
-        $course->language = $request->language;
         $course->level = $request->level;
 
         // Base64画像をStorageに保存
@@ -58,8 +56,6 @@ class CourseController extends Controller
             $imageData = preg_replace('#^data:image/\w+;base64,#i', '', $request->image);
             $imageData = str_replace(' ', '+', $imageData);
             $imageName = time() . '.png';
-
-            // storage/app/public/courses に保存
             Storage::disk('public')->put('courses/' . $imageName, base64_decode($imageData));
             $course->image = 'courses/' . $imageName;
         }
@@ -86,8 +82,7 @@ class CourseController extends Controller
             'title' => 'required|string|max:255',
             'price' => 'nullable|numeric',
             'description' => 'nullable|string',
-            'category' => 'nullable|string|max:100',
-            'language' => 'required|string',
+            'category' => 'required|string|in:IT,English,Japanese',
             'level' => 'required|string',
             'image' => 'nullable|string', // Base64
         ]);
@@ -96,7 +91,6 @@ class CourseController extends Controller
         $course->price = $request->price ?? 0;
         $course->description = $request->description;
         $course->category = $request->category;
-        $course->language = $request->language;
         $course->level = $request->level;
 
         if ($request->image) {
@@ -104,11 +98,9 @@ class CourseController extends Controller
             if ($course->image && Storage::disk('public')->exists($course->image)) {
                 Storage::disk('public')->delete($course->image);
             }
-
             $imageData = preg_replace('#^data:image/\w+;base64,#i', '', $request->image);
             $imageData = str_replace(' ', '+', $imageData);
             $imageName = time() . '.png';
-
             Storage::disk('public')->put('courses/' . $imageName, base64_decode($imageData));
             $course->image = 'courses/' . $imageName;
         }

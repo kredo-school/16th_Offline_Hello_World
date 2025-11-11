@@ -989,3 +989,16 @@ form.d-flex button {
         padding: 0.35rem 0.6rem !important;
     }
 }
+
+/* サイドバー内のリンクは全部このサイズで統一 */
+.sidebar-shell .s-link {
+    font-size: 1.1rem;
+}
+
+.sidebar-avatar-square {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;   /* 画像の比率を保ったまま中身だけトリミング */
+    border-radius: 6px;  /* 角丸にしたくなければ 0 にする */
+    display: inline-block;
+}

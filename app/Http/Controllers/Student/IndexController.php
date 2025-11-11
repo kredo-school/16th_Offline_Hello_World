@@ -16,10 +16,10 @@ class IndexController extends Controller
         $user = Auth::user();
         $tz   = config('app.timezone', 'Asia/Manila');
 
-        $courses = $user->courses() // teacher_course tableからteacherに紐づくcourseを取得
+        $courses = $user->courses() // enrollments tableからstudentに紐づくcourseを取得
         ->select('courses.id', 'courses.title')
         ->with(['topics:id,course_id,name']) // topics tableから、courseに紐づくrecordを事前に取得
-        // ->wherePivot('status', 'active')
+        ->wherePivot('status', 'active')
         ->orderBy('courses.title')
         ->get();
 

@@ -6,309 +6,698 @@
     @php
         /** @var \App\Models\User|null $viewer */
         $viewer = auth()->user();
-        $isAdmin = (int) ($viewer->role_id ?? 0) === 1; // 1 = admin
+        $isAdmin = (int) ($viewer->role_id ?? 0) === 1;
         $isSelf = (int) ($viewer->id ?? 0) === (int) ($user->id ?? -1);
-        $canSeeAll = $isAdmin || $isSelf; // 管理者 or 本人だけ編集系を表示
+        // 表示権限：Admin or 本人
+    $canSeeAll = $isAdmin || $isSelf;
+
+    // 編集権限：本人のみ（Admin は不可）
+    $canEdit = $isSelf;
     @endphp
 
-    <section class="container py-4 layout-narrow">
+    <style>
+        .profile-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
 
-        {{-- Profile Card --}}
-        <div class="card ui-card mb-5">
-            <div class="card-body p-4 p-md-5">
-                <div class="row g-5 align-items-center">
+        /* ===== Area wrappers: 3エリアをはっきり分ける枠 ===== */
+        .area-block {
+            border-radius: 1.5rem;
+            border: 1px solid #e5e7eb;
+            padding: 10px 10px 12px;
+            background: #f9fafb;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+        }
 
-                    {{-- Photo + Change Photo --}}
-<div class="col-md-4">
-    <div class="text-center">
+        .area-block-inner {
+            border-radius: 1rem;
+            border: 1px solid #f3f4f6;
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.02);
+        }
 
-        {{-- Avatar --}}
-        <div class="avatar mx-auto">
-            <img
-                alt="Profile photo"
-                class="avatar-img rounded-circle"
-                src="{{ $user->avatar_path
-                        ? asset('storage/' . $user->avatar_path)
-                        : asset('images/default-avatar.png') }}">
-        </div>
+        .area-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: #9ca3af;
+            padding: 2px 10px;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+            background-color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
 
-        {{-- Change Photo（本人 or 管理者のみ） --}}
-        @if ($canSeeAll)
-            <form action="{{ route('students.profile.photo.update', ['user' => $user->id]) }}"
-                  method="POST"
-                  enctype="multipart/form-data"
-                  class="mt-3">
-                @csrf
-                @method('PUT')
+        .area-label i {
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
 
-                <input id="photo" name="photo" type="file"
-                       class="d-none"
-                       accept="image/*"
-                       onchange="this.form.submit()">
+        /* Common section header inside each block */
+        .section-header {
+            padding: 10px 14px 8px;
+            border-bottom: 1px solid #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
 
-                <label for="photo" class="btn btn-ghost px-4">
-                    Change Photo
-                </label>
-            </form>
-        @endif
+        .section-header-title {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.98rem;
+            font-weight: 600;
+            color: #111827;
+        }
 
-    </div>
-</div>
+        .section-header-title i {
+            font-size: 0.9rem;
+        }
 
-                    {{-- Name / Email / About --}}
-                    <div class="col-md-8">
-                        <div class="d-flex align-items-start justify-content-between gap-3">
-                            <div>
-                                <h1 class="title mb-1">{{ $user->name }}</h1>
+        .section-header-sub {
+            font-size: 0.78rem;
+            color: #9ca3af;
+        }
 
-                                @if ($canSeeAll)
-                                    <div class="meta small">{{ $user->email }}</div>
-                                @endif
+        /* Profile avatar (縦長) - 枠なしで画像だけ */
+        .profile-avatar-wrap {
+            width: 150px;
+            height: 180px;
+            border-radius: 0.9rem;
+            overflow: hidden;
+            margin: 0 auto 0.75rem;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .profile-avatar {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .section-empty {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        /* アイコン画像（コース・レッスン）も枠なし */
+        .course-thumb,
+        .lesson-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background: transparent;
+            flex-shrink: 0;
+        }
+
+        .course-thumb img,
+        .lesson-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .lesson-meta {
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        /* Lesson history row: ボタンが次の行に落ちないようにする */
+        .lesson-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: nowrap;
+        }
+
+        .lesson-row .lesson-text {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .lesson-row .details-wrap {
+            flex-shrink: 0;
+        }
+
+        .lesson-row .title-line {
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 767.98px) {
+            .profile-container {
+                max-width: 100%;
+            }
+
+            .lesson-row {
+                align-items: flex-start;
+            }
+        }
+    </style>
+
+    <section class="py-4">
+        <div class="container profile-container">
+
+            {{-- ===== Profile Area ===== --}}
+            <div class="area-block mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="area-label">
+                        <i class="fa-regular fa-user"></i>
+                        PROFILE
+                    </div>
+                </div>
+
+                <div class="area-block-inner">
+                    <div class="card border-0 bg-transparent">
+                        <div class="card-body p-4">
+
+                            <div class="d-flex justify-content-between align-items-start mb-3 gap-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge rounded-pill bg-light text-secondary small border">
+                                        Student
+                                    </span>
+                                    @if ($isAdmin)
+                                        <span class="badge rounded-pill bg-dark text-white small">
+                                            Admin view
+                                        </span>
+                                    @elseif($isSelf)
+                                        <span class="badge rounded-pill bg-success-subtle text-success-emphasis small">
+                                            It’s you
+                                        </span>
+                                    @endif
+                                </div>
                             </div>
 
-                            {{-- Edit（PC） --}}
-                            @if ($canSeeAll)
-                                <div class="d-none d-md-block">
-                                    <button type="button" class="btn btn-primary-solid px-4" data-bs-toggle="modal"
-                                        data-bs-target="#editProfileModal">
-                                        Edit
+                            <div class="row g-4 align-items-center">
+
+                                {{-- Avatar --}}
+                                <div class="col-md-4">
+                                    <div class="text-center">
+                                        <div class="profile-avatar-wrap">
+                                            <img
+                                                alt="Profile photo"
+                                                class="profile-avatar"
+                                                src="{{ $user->avatar_path
+                                                        ? asset('storage/' . ltrim($user->avatar_path, '/'))
+                                                        : asset('images/default-avatar.png') }}">
+                                        </div>
+
+                                        @if ($canEdit)
+                                            <form action="{{ route('students.profile.photo.update', ['user' => $user->id]) }}"
+                                                  method="POST" enctype="multipart/form-data">
+                                                @csrf
+                                                @method('PUT')
+                                                <input id="photo" name="photo" type="file"
+                                                       class="d-none" accept="image/*"
+                                                       onchange="this.form.submit()">
+                                                <label for="photo"
+                                                       class="btn btn-outline-secondary btn-sm px-3 rounded-pill">
+                                                    Change photo
+                                                </label>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                {{-- Basic info --}}
+                                <div class="col-md-8">
+                                    <div class="d-flex align-items-start justify-content-between gap-3">
+                                        <div>
+                                            <h1 class="h5 mb-1 fw-semibold">{{ $user->name }}</h1>
+                                            @if ($canSeeAll)
+                                                <div class="text-muted small">
+                                                    <i class="fa-regular fa-envelope me-1"></i>{{ $user->email }}
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        @if ($canEdit)
+                                            <button type="button"
+                                                    class="btn btn-primary btn-sm px-3 rounded-pill d-none d-md-inline-flex"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#editProfileModal">
+                                                Edit
+                                            </button>
+                                        @endif
+                                    </div>
+
+                                    <hr class="my-3">
+
+                                    <div>
+                                        <div class="text-uppercase text-muted small fw-semibold mb-1">About</div>
+                                        <p class="mb-0 text-body" style="font-size:0.9rem;">
+                                            {{ $user->about ?: 'No introduction yet.' }}
+                                        </p>
+                                    </div>
+
+                                    @if ($canEdit)
+                                        <div class="d-grid d-md-none mt-3">
+                                            <button type="button"
+                                                    class="btn btn-primary btn-sm rounded-pill"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#editProfileModal">
+                                                Edit profile
+                                            </button>
+                                        </div>
+                                    @endif
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ===== Enrolled & History Areas ===== --}}
+            <div class="row g-2">
+
+                {{-- ==== Enrolled Courses Area ==== --}}
+                <div class="col-md-5 col-12">
+                    <div class="area-block h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="area-label">
+                                <i class="fa-solid fa-layer-group"></i>
+                                ENROLLED
+                            </div>
+                        </div>
+
+                        <div class="area-block-inner h-100">
+                            <div class="card border-0 bg-transparent h-100">
+                                <div class="card-body p-2 p-md-4 d-flex flex-column h-100">
+
+                                    <div class="section-header">
+                                        <div class="section-header-title">
+                                            <i class="fa-solid fa-layer-group text-primary"></i>
+                                            <span>Enrolled courses</span>
+                                        </div>
+                                        <div class="section-header-sub">Active &amp; completed</div>
+                                    </div>
+
+                                    <ul class="nav nav-pills mb-3 small bg-light rounded-pill p-1" id="courseTabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active px-3 py-1 rounded-pill"
+                                                    id="course-tab-active"
+                                                    data-bs-toggle="pill"
+                                                    data-bs-target="#course-pane-active"
+                                                    type="button" role="tab">
+                                                Active
+                                            </button>
+                                        </li>
+                                        <li class="nav-item ms-1" role="presentation">
+                                            <button class="nav-link px-3 py-1 rounded-pill"
+                                                    id="course-tab-completed"
+                                                    data-bs-toggle="pill"
+                                                    data-bs-target="#course-pane-completed"
+                                                    type="button" role="tab">
+                                                Completed
+                                            </button>
+                                        </li>
+                                    </ul>
+
+                                    <div class="tab-content flex-grow-1 d-flex flex-column">
+
+                                        {{-- Active --}}
+                                        <div class="tab-pane fade show active flex-grow-1"
+                                             id="course-pane-active" role="tabpanel">
+                                            @if ($activeCourses->count())
+                                                <div class="vstack gap-2 mb-2">
+                                                    @foreach ($activeCourses as $course)
+                                                        @php
+                                                            $thumb = $course->image_url
+                                                                ? asset('storage/' . ltrim($course->image_url, '/'))
+                                                                : asset('images/placeholder-course.png');
+                                                        @endphp
+                                                        <a href="{{ route('courses.show', ['course' => $course->id]) }}"
+                                                           class="d-flex align-items-center gap-3 py-2 px-1 rounded-3 text-decoration-none bg-light-subtle border-0"
+                                                           style="transition:all .18s ease;">
+                                                            <div class="course-thumb">
+                                                                <img src="{{ $thumb }}" alt="Course">
+                                                            </div>
+                                                            <div class="flex-grow-1 text-truncate" style="font-size:0.9rem;">
+                                                                {{ $course->title }}
+                                                                <div class="text-muted small">In progress</div>
+                                                            </div>
+                                                            <i class="fa-solid fa-chevron-right text-muted small"></i>
+                                                        </a>
+                                                    @endforeach
+                                                </div>
+
+                                                <div class="mt-auto d-flex justify-content-center">
+                                                    {{ $activeCourses->onEachSide(1)->links('pagination::bootstrap-5') }}
+                                                </div>
+                                            @else
+                                                <div class="section-empty">No active courses.</div>
+                                            @endif
+                                        </div>
+
+                                        {{-- Completed (Activeと同じフォーマット) --}}
+                                        <div class="tab-pane fade flex-grow-1"
+                                             id="course-pane-completed" role="tabpanel">
+                                            @if ($completedCourses->count())
+                                                <div class="vstack gap-2 mb-2">
+                                                    @foreach ($completedCourses as $course)
+                                                        @php
+                                                            $thumb = $course->image_url
+                                                                ? asset('storage/' . ltrim($course->image_url, '/'))
+                                                                : asset('images/placeholder-course.png');
+                                                        @endphp
+                                                        <a href="{{ route('courses.show', ['course' => $course->id]) }}"
+                                                           class="d-flex align-items-center gap-3 py-2 px-1 rounded-3 text-decoration-none bg-light-subtle border-0"
+                                                           style="transition:all .18s ease;">
+                                                            <div class="course-thumb">
+                                                                <img src="{{ $thumb }}" alt="Course">
+                                                            </div>
+                                                            <div class="flex-grow-1 text-truncate" style="font-size:0.9rem;">
+                                                                {{ $course->title }}
+                                                                <div class="text-muted small">Completed</div>
+                                                            </div>
+                                                            <i class="fa-solid fa-chevron-right text-muted small"></i>
+                                                        </a>
+                                                    @endforeach
+                                                </div>
+
+                                                <div class="mt-auto d-flex justify-content-center">
+                                                    {{ $completedCourses->onEachSide(1)->links('pagination::bootstrap-5') }}
+                                                </div>
+                                            @else
+                                                <div class="section-empty">No completed courses.</div>
+                                            @endif
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ==== Lesson History Area ==== --}}
+                <div class="col-md-7 col-12">
+                    <div class="area-block h-100">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="area-label">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                                HISTORY
+                            </div>
+                        </div>
+
+                        <div class="area-block-inner h-100">
+                            <div class="card border-0 bg-transparent h-100">
+                                <div class="card-body p-2 p-md-4 d-flex flex-column h-100">
+
+                                    <div class="section-header">
+                                        <div class="section-header-title">
+                                            <i class="fa-solid fa-clock-rotate-left text-primary"></i>
+                                            <span>Lesson history</span>
+                                        </div>
+                                        <div class="section-header-sub">Previous sessions</div>
+                                    </div>
+
+                                    <div class="vstack gap-2 flex-grow-1">
+                                        @forelse ($history as $b)
+                                            @php
+                                                $srcTz = config('app.timezone', 'Asia/Manila');
+                                                $viewTz = 'Asia/Manila';
+
+                                                $rawDate = $b->getAttribute('date');
+                                                if ($rawDate instanceof \Carbon\Carbon) {
+                                                    $dateStr = $rawDate->format('Y-m-d');
+                                                } else {
+                                                    $dateStr = (string) $rawDate;
+                                                    if (preg_match('/^\d{4}-\d2-\d2\s+\d{2}:\d{2}:\d{2}$/', $dateStr)) {
+                                                        $dateStr = substr($dateStr, 0, 10);
+                                                    }
+                                                }
+
+                                                $rawTime = $b->getAttribute('time');
+                                                if ($rawTime instanceof \Carbon\Carbon) {
+                                                    $timeStr = $rawTime->format('H:i:s');
+                                                } else {
+                                                    $timeStr = (string) $rawTime;
+                                                    if (preg_match('/^\d{2}:\d{2}$/', $timeStr)) {
+                                                        $timeStr .= ':00';
+                                                    }
+                                                }
+
+                                                $dt = \Carbon\Carbon::createFromFormat('Y-m-d H:i:s', "$dateStr $timeStr", $srcTz)
+                                                        ->setTimezone($viewTz);
+
+                                                $duration = $b->duration_minutes ?? 50;
+                                                $end = (clone $dt)->addMinutes($duration);
+
+                                                $course   = $b->course->title ?? 'Course';
+                                                $topic    = $b->topic->name ?? 'Topic';
+                                                $teacherN = $b->teacher->name ?? 'Teacher';
+
+                                                $iconUrl =
+                                                    $b->course && $b->course->image_url
+                                                        ? asset('storage/' . ltrim($b->course->image_url, '/'))
+                                                        : asset('images/placeholder-course.png');
+
+                                                $whenStr = $dt->format('D, M j H:i') . '–' . $end->format('H:i');
+
+                                                $status      = $b->report->status ?? null;
+                                                $feedback    = $b->report->feedback ?? '—';
+                                                $nextTopName = $b->report?->nextTopic?->name ?? '—';
+
+                                                $courseId  = $b->course->id ?? null;
+                                                $teacherId = $b->teacher->id ?? null;
+                                            @endphp
+
+                                            <div class="card border-0 shadow-sm" style="border-radius:0.75rem;">
+                                                <div class="card-body py-2 px-2">
+                                                    <div class="lesson-row">
+                                                        <div class="lesson-thumb">
+                                                            <img src="{{ $iconUrl }}" alt="Course icon">
+                                                        </div>
+
+                                                        <div class="lesson-text">
+                                                            <div class="title-line text-truncate">
+                                                                @if ($courseId)
+                                                                    <a href="{{ route('courses.show', ['course' => $courseId]) }}"
+                                                                       class="text-decoration-none text-dark">
+                                                                        {{ $course }}
+                                                                    </a>
+                                                                @else
+                                                                    {{ $course }}
+                                                                @endif
+                                                                <span class="text-muted">/ {{ $topic }}</span>
+                                                            </div>
+                                                            <div class="lesson-meta text-truncate">
+                                                                <i class="fa-regular fa-calendar me-1"></i>{{ $whenStr }}
+                                                                &nbsp;|&nbsp;with
+                                                                @if ($teacherId)
+                                                                    <a href="{{ route('teachers.profile', ['user_id' => $teacherId]) }}"
+                                                                       class="text-decoration-none">
+                                                                        {{ $teacherN }}
+                                                                    </a>
+                                                                @else
+                                                                    {{ $teacherN }}
+                                                                @endif
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="details-wrap">
+                                                            <button type="button"
+                                                                    class="btn btn-outline-secondary btn-sm px-3 rounded-pill"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#bookingDetails-{{ $b->id }}">
+                                                                Details
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {{-- Modal --}}
+                                            <div class="modal fade" id="bookingDetails-{{ $b->id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content border-0 rounded-3 shadow-lg">
+                                                        <div class="modal-header border-0 pb-0">
+                                                            <h5 class="modal-title">Lesson details</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                                                    aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body pt-2">
+                                                            <div class="mb-3">
+                                                                <div class="text-uppercase text-muted small fw-semibold mb-1">
+                                                                    Booking
+                                                                </div>
+                                                                <ul class="list-group list-group-flush">
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Course</span>
+                                                                            <span class="fw-semibold text-end text-truncate" title="{{ $course }}">
+                                                                                @if ($courseId)
+                                                                                    <a href="{{ route('courses.show', ['course' => $courseId]) }}"
+                                                                                       class="text-dark text-decoration-none">
+                                                                                        {{ $course }}
+                                                                                    </a>
+                                                                                @else
+                                                                                    {{ $course }}
+                                                                                @endif
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Topic</span>
+                                                                            <span class="fw-semibold text-end text-truncate">
+                                                                                {{ $topic }}
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Teacher</span>
+                                                                            <span class="fw-semibold text-end text-truncate">
+                                                                                @if ($teacherId)
+                                                                                    <a href="{{ route('teachers.profile', ['user_id' => $teacherId]) }}"
+                                                                                       class="text-dark text-decoration-none">
+                                                                                        {{ $teacherN }}
+                                                                                    </a>
+                                                                                @else
+                                                                                    {{ $teacherN }}
+                                                                                @endif
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Date &amp; time</span>
+                                                                            <span class="fw-semibold text-end text-truncate">
+                                                                                {{ $whenStr }}
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                </ul>
+                                                            </div>
+
+                                                            <div>
+                                                                <div class="text-uppercase text-muted small fw-semibold mb-1">
+                                                                    Report
+                                                                </div>
+                                                                <ul class="list-group list-group-flush">
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Status</span>
+                                                                            <span class="text-end">
+                                                                                {{ $status ?: '—' }}
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Next topic</span>
+                                                                            <span class="fw-semibold text-end text-truncate">
+                                                                                {{ $nextTopName }}
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                    <li class="list-group-item px-0">
+                                                                        <div class="d-flex justify-content-between small">
+                                                                            <span class="text-secondary">Comment</span>
+                                                                            <span class="fw-semibold text-end text-wrap">
+                                                                                {{ $feedback ?: '—' }}
+                                                                            </span>
+                                                                        </div>
+                                                                    </li>
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="modal-footer border-0">
+                                                            <button type="button" class="btn btn-light border"
+                                                                    data-bs-dismiss="modal">
+                                                                Close
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <div class="alert alert-light border d-flex align-items-center gap-2 mb-0">
+                                                <i class="fa-regular fa-circle-info text-secondary"></i>
+                                                <span class="small">No lesson history yet.</span>
+                                            </div>
+                                        @endforelse
+                                    </div>
+
+                                    @if ($history->hasPages())
+                                        <div class="mt-3 d-flex justify-content-center">
+                                            {{ $history->onEachSide(1)->links('pagination::bootstrap-5') }}
+                                        </div>
+                                    @endif
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {{-- ===== Edit Profile Modal ===== --}}
+            @if ($canEdit)
+                <div class="modal fade" id="editProfileModal" tabindex="-1"
+                     aria-labelledby="editProfileModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 rounded-3 shadow-lg">
+                            <div class="modal-header border-0 pb-0">
+                                <h5 class="modal-title" id="editProfileModalLabel">Edit profile</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
+                            </div>
+
+                            <form action="{{ route('students.profile.update', $user) }}" method="POST">
+                                @csrf
+                                @method('PUT')
+
+                                <div class="modal-body pt-2">
+                                    <div class="mb-3">
+                                        <label for="edit-name" class="form-label">Name</label>
+                                        <input type="text" id="edit-name" name="name"
+                                               class="form-control"
+                                               value="{{ old('name', $user->name) }}" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="edit-email" class="form-label">Email</label>
+                                        <input type="email" id="edit-email" name="email"
+                                               class="form-control"
+                                               value="{{ old('email', $user->email) }}" required>
+                                    </div>
+                                    <div class="mb-0">
+                                        <label for="edit-about" class="form-label">About</label>
+                                        <textarea id="edit-about" name="about"
+                                                  class="form-control" rows="4"
+                                                  placeholder="Tell us about yourself.">{{ old('about', $user->about) }}</textarea>
+                                    </div>
+                                </div>
+
+                                <div class="modal-footer border-0">
+                                    <button type="button" class="btn btn-light border"
+                                            data-bs-dismiss="modal">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        Save changes
                                     </button>
                                 </div>
-                            @endif
+                            </form>
+
                         </div>
-
-                        <hr class="rule my-3">
-
-                        <div>
-                            <div class="section-label mb-2">About</div>
-                            <p class="body-text mb-0">
-                                {{ $user->about ? $user->about : '—' }}
-                            </p>
-                        </div>
-
-                        {{-- Edit（SP） --}}
-                        @if ($canSeeAll)
-                            <div class="d-grid d-md-none mt-3">
-                                <button type="button" class="btn btn-primary-solid" data-bs-toggle="modal"
-                                    data-bs-target="#editProfileModal">
-                                    Edit
-                                </button>
-                            </div>
-                        @endif
                     </div>
-
                 </div>
-            </div>
+            @endif
+
         </div>
-
-        {{-- My Learning（デザイン踏襲・ダミー。実データ差し替え前提） --}}
-        <div class="card ui-card">
-            <div class="card-body p-3 p-md-4">
-
-                {{-- Header --}}
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                    <div>
-                        <h2 class="subtitle mb-0">My Learning</h2>
-                        <div class="text-muted small">
-                            Your current courses, completed history & wishlist.
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Tabs --}}
-                <ul class="nav nav-tabs mylearning-tabs" role="tablist">
-                    <li class="nav-item">
-                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#learning" type="button">
-                            Learning
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#completed" type="button">
-                            Completed
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#wishlist" type="button">
-                            Wishlist
-                        </button>
-                    </li>
-                </ul>
-
-                <div class="tab-content pt-3">
-
-                    {{-- Learning --}}
-                    <div class="tab-pane fade show active" id="learning">
-                        <div class="row g-3 g-md-4">
-                            @for ($i = 1; $i <= 3; $i++)
-                                <div class="col-12 col-sm-6 col-lg-4">
-                                    <div class="learning-card card h-100 border-0">
-                                        <div class="learning-thumb ratio ratio-16x9">
-                                            <div class="learning-thumb-inner">
-                                                <span class="badge rounded-pill learning-badge">
-                                                    In progress
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="card-body">
-                                            <h6 class="card-title fw-semibold mb-1">
-                                                Course Name {{ $i }}
-                                            </h6>
-                                            <p class="card-text text-muted small mb-2">
-                                                Short description for course {{ $i }}.
-                                            </p>
-
-                                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <span class="text-muted xsmall">Progress</span>
-                                                <span class="xsmall fw-semibold">45%</span>
-                                            </div>
-                                            <div class="progress-soft">
-                                                <div class="progress-soft-bar" style="--val:45%;"></div>
-                                            </div>
-
-                                            <div class="d-flex flex-wrap gap-2 mt-2 xsmall text-muted">
-                                                <span><i class="fa-regular fa-circle-play me-1"></i>8 / 16 lessons</span>
-                                                <span><i class="fa-regular fa-clock me-1"></i>Next: Nov 10</span>
-                                            </div>
-                                        </div>
-                                        <div class="card-footer bg-transparent border-0 pt-0 pb-3">
-                                            <a href="#" class="btn btn-sm btn-outline-primary w-100">
-                                                Continue
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endfor
-                        </div>
-                    </div>
-
-                    {{-- Completed --}}
-                    <div class="tab-pane fade" id="completed">
-                        <div class="row g-3 g-md-4">
-                            @for ($i = 1; $i <= 2; $i++)
-                                <div class="col-12 col-sm-6 col-lg-4">
-                                    <div class="learning-card card h-100 border-0">
-                                        <div class="learning-thumb ratio ratio-16x9">
-                                            <div class="learning-thumb-inner">
-                                                <span class="badge rounded-pill bg-success-subtle text-success-emphasis">
-                                                    <i class="fa-regular fa-circle-check me-1"></i>
-                                                    Completed
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="card-body">
-                                            <h6 class="card-title fw-semibold mb-1">
-                                                Course Name {{ $i }}
-                                            </h6>
-                                            <p class="card-text text-muted small mb-2">
-                                                Completed course description {{ $i }}.
-                                            </p>
-                                            <div class="xsmall text-muted">
-                                                Finished on: 2025-10-{{ 10 + $i }}
-                                            </div>
-                                        </div>
-                                        <div class="card-footer bg-transparent border-0 pt-0 pb-3">
-                                            <a href="#" class="btn btn-sm btn-outline-secondary w-100">
-                                                View details
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endfor
-                        </div>
-                    </div>
-
-                    {{-- Wishlist --}}
-                    <div class="tab-pane fade" id="wishlist">
-                        <div class="row g-3 g-md-4">
-                            @for ($i = 1; $i <= 2; $i++)
-                                <div class="col-12 col-sm-6 col-lg-4">
-                                    <div class="learning-card card h-100 border-0">
-                                        <div class="learning-thumb ratio ratio-16x9">
-                                            <div class="learning-thumb-inner">
-                                                <span class="badge rounded-pill bg-light text-muted">
-                                                    Wishlist
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="card-body">
-                                            <h6 class="card-title fw-semibold mb-1">
-                                                Course Name {{ $i }}
-                                            </h6>
-                                            <p class="card-text text-muted small mb-2">
-                                                You saved this for later.
-                                            </p>
-                                            <div class="xsmall text-muted">
-                                                Est. 6h • Beginner friendly
-                                            </div>
-                                        </div>
-                                        <div class="card-footer bg-transparent border-0 pt-0 pb-3">
-                                            <a href="#" class="btn btn-sm btn-primary w-100">
-                                                Start this course
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endfor
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        {{-- Edit Profile Modal（本人 or 管理者のみ） --}}
-        @if ($canSeeAll)
-            <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel"
-                aria-hidden="true">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content border-0 rounded-3">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="editProfileModalLabel">
-                                Edit profile
-                            </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
-                        </div>
-
-                        <form action="{{ route('students.profile.update', $user) }}" method="POST">
-                            @csrf
-                            @method('PUT')
-
-                            <div class="modal-body">
-                                {{-- Name --}}
-                                <div class="mb-3">
-                                    <label for="edit-name" class="form-label">Name</label>
-                                    <input type="text" id="edit-name" name="name" class="form-control"
-                                        value="{{ old('name', $user->name) }}" required>
-                                </div>
-
-                                {{-- Email --}}
-                                <div class="mb-3">
-                                    <label for="edit-email" class="form-label">Email</label>
-                                    <input type="email" id="edit-email" name="email" class="form-control"
-                                        value="{{ old('email', $user->email) }}" required>
-                                </div>
-
-                                {{-- About --}}
-                                <div class="mb-0">
-                                    <label for="edit-about" class="form-label">About</label>
-                                    <textarea id="edit-about" name="about" class="form-control" rows="4" placeholder="Tell us about yourself.">{{ old('about', $user->about) }}</textarea>
-                                </div>
-                            </div>
-
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">
-                                    Cancel
-                                </button>
-                                <button type="submit" class="btn btn-primary-solid">
-                                    Save changes
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        @endif
-
     </section>
 @endsection

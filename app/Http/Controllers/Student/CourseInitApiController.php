@@ -27,20 +27,42 @@ class CourseInitApiController extends Controller
         $teacherIds = $course->teachers()->pluck('users.id');
 
         $slots = Booking::query()
-            ->whereIn('teacher_id', $teacherIds)
-            ->whereNull('student_id') // 空き枠のみ
-            ->whereRaw('TIMESTAMP(`date`,`time`) >= ?', [Carbon::now()->addHour()->toDateTimeString()])
-            ->with(['teacher:id,name'])
-            ->orderBy('date')->orderBy('time')
-            ->get(['id','teacher_id','date','time'])
-            ->map(fn($b) => [
-                'booking_id'   => $b->id,
-                'date'         => $b->date,                  // 'YYYY-MM-DD'
-                'time'         => substr($b->time, 0, 5),    // 'HH:MM'
-                'teacher_id'   => $b->teacher_id,
-                'teacher_name' => $b->teacher?->name ?? 'Teacher',
-            ])
-            ->values();
+    ->whereIn('teacher_id', $teacherIds)
+    ->whereNull('student_id') // 空き枠のみ
+    ->whereRaw('TIMESTAMP(`date`,`time`) >= ?', [Carbon::now()->addHour()->toDateTimeString()])
+    ->with(['teacher:id,name'])
+    ->orderBy('date')->orderBy('time')
+    ->get(['id','teacher_id','date','time'])
+    ->map(function ($b) {
+        // --- date を必ず 'Y-m-d' のプレーン文字列にする ---
+        $rawDate = $b->getAttribute('date');
+        if ($rawDate instanceof Carbon) {
+            $date = $rawDate->format('Y-m-d');
+        } else {
+            // '2025-02-10' or '2025-02-10 00:00:00' 対応
+            $date = substr((string) $rawDate, 0, 10);
+        }
+
+        // --- time を 'H:i:s' か 'H:i' に正規化 ---
+        $rawTime = $b->getAttribute('time');
+        if ($rawTime instanceof Carbon) {
+            $time = $rawTime->format('H:i:s');
+        } else {
+            $time = (string) $rawTime;
+            if (preg_match('/^\d{2}:\d{2}$/', $time)) {
+                $time .= ':00';
+            }
+        }
+
+        return [
+            'booking_id'   => $b->id,
+            'date'         => $date,                  // ★ ここが重要：もうISOにさせない
+            'time'         => $time,                  // JS 側で normalizeHms() 済み
+            'teacher_id'   => $b->teacher_id,
+            'teacher_name' => $b->teacher?->name ?? 'Teacher',
+        ];
+    })
+    ->values();
 
         return response()->json([
             'topics'    => $topics,     // [{id,name},...]

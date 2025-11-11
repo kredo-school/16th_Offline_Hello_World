@@ -39,11 +39,6 @@
                     {{-- Courses --}}
                     <a class="nav-link text-dark" href="{{ route('admin.courses.index') }}">Courses</a>
 
-                    {{-- Self-learning（未実装なら # のままでも可） --}}
-                    <a class="nav-link text-dark" href="#">Self-learning</a>
-
-                    {{-- Forums --}}
-                    <a class="nav-link text-dark" href="">Forum</a>
                 </nav>
 
                 <div class="mt-auto text-left w-100 px-5">
