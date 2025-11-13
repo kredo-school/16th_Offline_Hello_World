@@ -5,49 +5,64 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Faker\Factory as Faker;
+use App\Models\User;
+use App\Models\TeacherCourse;
+use App\Models\Enrollment;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $faker = \Faker\Factory::create('en_US');
-        $now   = now();
+        $faker = Faker::create('en_US');
 
+        # Admin
         DB::table('users')->insert([
-            'name'              => 'Admin User',
-            'email'             => 'admin@example.com',
-            'password'          => Hash::make('AdminPass123!'),
-            'role_id'           => 1, // 1=admin, 2=teacher, 3=student, 4=basic_user
+            'name'              => 'Admin',
+            'email'             => 'admin@helloworld.com',
+            'password'          => Hash::make('helloworld@admin'),
+            'role_id'           => 1,
             'about'             => 'System administrator account for testing.',
-            'email_verified_at' => $now,
-            'created_at'        => $now,
-            'updated_at'        => $now,
+            'created_at'        => NOW(),
+            'updated_at'        => NOW(),
         ]);
+        
+        # Teacher Faker
+        $courses = [1,2,3,4];
+        foreach(range(1,10) as $index){
+            $teacher = User::create([
+                'name'          => $faker->name(),
+                'email'         => 'teacher' . $index . '@gmail.com',
+                'password'      => Hash::make('helloworld@teacher'),
+                'role_id'       => 2,
+                'about'         => $faker->paragraph(3, true),
+                'created_at'    => NOW(),
+                'updated_at'    => NOW(),
+            ]);
 
-        $bulk   = [];
-        $roles  = [2, 3, 4];
-        $total  = 20;
-
-        for ($i = 0; $i < $total; $i++) {
-            $bulk[] = [
-                'name'              => "User".$i,
-                'email'             => "User".$i."@gmail.com",
-                'password'          => Hash::make('password123'),
-                'role_id'           => $roles[array_rand($roles)],
-                'about'             => $faker->paragraphs(3, true),
-                'email_verified_at' => $now,
-                'created_at'        => $now,
-                'updated_at'        => $now,
-            ];
-
-            if (count($bulk) === 500) {
-                DB::table('users')->insert($bulk);
-                $bulk = [];
-            }
+            TeacherCourse::create([
+                'teacher_id' => $teacher->id,
+                'course_id'  => $courses[array_rand($courses)],
+            ]);
         }
 
-        if ($bulk) {
-            DB::table('users')->insert($bulk);
+        # Student Faker
+        foreach(range(1,5) as $index){
+            $student = User::create([
+                'name'          => $faker->name(),
+                'email'         => 'student' . $index . '@gmail.com',
+                'password'      => Hash::make('helloworld@student'),
+                'role_id'       => 3,
+                'about'         => $faker->paragraph(3, true),
+                'created_at'    => NOW(),
+                'updated_at'    => NOW(),
+            ]);
+
+            Enrollment::create([
+                'user_id'           => $student->id,
+                'course_id'         => $courses[array_rand($courses)],
+                'enrollment_date'   => NOW(),
+            ]);
         }
     }
 }

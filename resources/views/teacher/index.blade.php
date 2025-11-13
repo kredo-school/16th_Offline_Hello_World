@@ -4,6 +4,23 @@
 
 @section('content')
     <section class="container py-3">
+        @php
+    $isTeacherInactive = mb_strtolower(Auth::user()->status ?? '') === 'inactive';
+@endphp
+
+@if ($isTeacherInactive)
+<div class="alert alert-danger alert-dismissible fade show mb-2" role="alert">
+  <div class="d-flex align-items-start gap-2">
+    <i class="fa-solid fa-triangle-exclamation fa-lg mt-1" aria-hidden="true"></i>
+    <div>
+      <strong>Account inactive.</strong>
+      You can still attend already-scheduled lessons, but opening new slots is disabled.
+      All future <em>Open</em> slots on your calendar will be removed automatically.
+    </div>
+  </div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+@endif
         {{-- CSRF（fetch用） --}}
         <meta name="csrf-token" content="{{ csrf_token() }}">
         @if (!$hasMeetingUrl)
@@ -129,7 +146,7 @@
                                 <option value="Absent">Absent</option>
                                 {{-- <option value="canceled by student">canceled by student</option> --}}
                                 <option value="Canceled by teacher">Canceled by teacher</option> {{-- ★ 要望の選択肢 --}}
-                                <option value="Others">Others</option> {{-- ★ 要望の選択肢 --}}
+                                <option value="Other">Other</option> {{-- ★ 要望の選択肢 --}}
                             </select>
                         </div>
 
@@ -149,9 +166,21 @@
                             </div>
                         </div>
 
+                        <div class="mt-3 form-check d-none" id="rpt-complete-course-wrap">
+                            <input class="form-check-input" type="checkbox" value="1" id="rpt-complete-course">
+                            <label class="form-check-label" for="rpt-complete-course">
+                                Mark this course as <span class="text-success">completed</span> for this student
+                            </label>
+                            <div class="form-text">
+                                Check this only if the student has finished all topics in this course.
+                                If unchecked, the enrollment will be treated as <code>active</code>.
+                            </div>
+                        </div>
+
+
                         <div class="mt-3">
                             <label class="form-label fw-semibold" for="rpt-feedback">Comment</label>
-                            <textarea id="rpt-feedback" class="form-control" rows="4"
+                            <textarea id="rpt-feedback" class="form-control" rows="3"
                                 placeholder="Write feedback or the cancellation reason here..." required></textarea>
                             {{-- <div class="form-text">When teacher cancels, put the reason here.</div> --}}
                         </div>
@@ -160,12 +189,12 @@
 
                     <div class="modal-footer gap-2">
                         {{-- Enter classroom ボタンを追加 --}}
-                        <a id="btn-enter-classroom" href="#" class="btn btn-primary" target="_blank"
+                        <a id="btn-enter-classroom" href="#" class="btn btn-sm btn-primary" target="_blank"
                             rel="noopener">
                             Enter classroom
                         </a>
-                        <button id="btn-save-report" type="button" class="btn btn-success">Save report</button>
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+                        <button id="btn-save-report" type="button" class="btn btn-sm btn-success">Save report</button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
                         {{-- <button id="btn-submit-cancel" type="button" class="btn btn-danger">Cancel booking</button> --}}
                     </div>
                 </form>
@@ -180,11 +209,22 @@
             data-cancel-url="{{ route('teachers.bookings.cancel', ['id' => '__ID__']) }}"
             data-report-url="{{ route('teachers.reports.show', ['booking' => '__ID__']) }}"
             data-report-update-url="{{ route('teachers.reports.update', ['booking' => '__ID__']) }}"
+            data-move-url="{{ route('teachers.bookings.move', ['booking' => '__ID__']) }}"
             data-student-url="{{ route('students.profile.show', ['user' => '__ID__']) }}"
             data-course-url="{{ route('courses.show', ['course' => '__ID__']) }}"
+            data-bulkdel-selected-url="{{ route('teachers.bookings.bulkDeleteSelected') }}"
             data-has-meeting-url="{{ $hasMeetingUrl ? 1 : 0 }}" style="min-height: 500px;"
             data-student-history-url="{{ route('students.lessonhistory', ['student' => '__ID__']) }}"
+            {{-- ★ 追加：inactiveフラグと将来Open一括削除API --}}
+     data-teacher-inactive="{{ $isTeacherInactive ? 1 : 0 }}"
+     data-purge-future-open-url="{{ route('teachers.bookings.purgeFutureOpen') }}"
             data-meeting-url="{{ $hasMeetingUrl ? Auth::user()->meeting_url : '' }}" style="min-height: 500px;"></div>
+
+        <div id="slot-context-menu" class="dropdown-menu" style="position:absolute; display:none; z-index:9999;">
+            <button class="dropdown-item text-danger" id="ctx-delete-selected">
+                Delete selected slots
+            </button>
+        </div>
     </section>
 @endsection
 
@@ -267,6 +307,62 @@
             box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18);
             display: inline-block;
         }
+
+        #teacherWeekCal .fc-event.slot-selected {
+            box-shadow: 0 0 0 2px #dc3545 !important;
+            filter: brightness(1.08);
+        }
+        /* ヘッダー全体を薄いピル状にして高さを詰める */
+#teacherWeekCal .fc-header-toolbar.fc-toolbar {
+    padding: 4px 8px 2px !important;
+    margin: 0 0 4px 0 !important;
+    gap: 6px !important;
+    align-items: center !important;
+    border-radius: 999px !important;
+    background: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+}
+
+/* タイトル "Nov 9 – 15, 2025" を小さく・細く・大文字で */
+#teacherWeekCal .fc .fc-toolbar-title {
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    color: #6b7280 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    margin: 0 !important;
+}
+
+/* ナビゲーション & View 切替ボタンをミニマルなピルに */
+#teacherWeekCal .fc .fc-button,
+#teacherWeekCal .fc .fc-button-primary {
+    padding: 2px 10px !important;
+    font-size: 0.7rem !important;
+    line-height: 1.2 !important;
+    border-radius: 999px !important;
+    background-color: #ffffff !important;
+    border-color: #e5e7eb !important;
+    color: #6b7280 !important;
+    box-shadow: none !important;
+}
+
+/* hover 時 */
+#teacherWeekCal .fc .fc-button:hover,
+#teacherWeekCal .fc .fc-button-primary:hover {
+    background-color: #f3f4f6 !important;
+    border-color: #d1d5db !important;
+    color: #374151 !important;
+}
+
+/* todayボタンをちょっとだけ強調 */
+#teacherWeekCal .fc .fc-today-button {
+    font-weight: 600 !important;
+}
+
+/* ヘッダー下の余白を詰める */
+#teacherWeekCal .fc-theme-standard .fc-scrollgrid {
+    margin-top: 0 !important;
+}
     </style>
 @endpush
 
@@ -288,6 +384,93 @@
             const studentUrlTpl = el.dataset.studentUrl || '';
             const courseUrlTpl = el.dataset.courseUrl || '';
             const studentHistoryUrlTpl = el.dataset.studentHistoryUrl || '';
+            const moveTpl = el.dataset.moveUrl || '';
+            const bulkSelectedUrl = el.dataset.bulkdelSelectedUrl || '';
+
+            const selectedIds = new Set();
+
+            const ctxMenu = document.getElementById('slot-context-menu');
+            const ctxDeleteBtn = document.getElementById('ctx-delete-selected');
+
+            const isTeacherInactive = (el.dataset.teacherInactive === '1');
+const purgeFutureOpenUrl = el.dataset.purgeFutureOpenUrl || '';
+
+            function showContextMenu(x, y) {
+                if (!ctxMenu) return;
+                if (selectedIds.size === 0) return;
+
+                ctxMenu.style.left = x + 'px';
+                ctxMenu.style.top = y + 'px';
+                ctxMenu.style.display = 'block';
+            }
+
+            function hideContextMenu() {
+                if (!ctxMenu) return;
+                ctxMenu.style.display = 'none';
+            }
+
+            function toggleSelectEvent(event) {
+                const id = String(event.id);
+
+                if (selectedIds.has(id)) {
+                    selectedIds.delete(id);
+                    event.setProp(
+                        'classNames',
+                        (event.classNames || []).filter(c => c !== 'slot-selected')
+                    );
+                } else {
+                    selectedIds.add(id);
+                    const set = new Set(event.classNames || []);
+                    set.add('slot-selected');
+                    event.setProp('classNames', Array.from(set));
+                }
+            }
+            if (ctxDeleteBtn && bulkSelectedUrl) {
+                ctxDeleteBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    hideContextMenu();
+
+                    if (selectedIds.size === 0) return;
+                    if (!confirm(`Delete ${selectedIds.size} selected open slot(s)?`)) return;
+
+                    const ids = Array.from(selectedIds);
+
+                    try {
+                        const res = await fetch(bulkSelectedUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                booking_ids: ids
+                            })
+                        });
+
+                        const j = await res.json().catch(() => ({}));
+
+                        if (!res.ok || !j.ok) {
+                            alert(j.message || 'Failed to delete selected slots.');
+                            return;
+                        }
+
+                        selectedIds.clear();
+                        calendar.refetchEvents();
+                    } catch (err) {
+                        console.error(err);
+                        alert('Network error.');
+                    }
+                });
+            }
+
+            document.addEventListener('click', () => {
+                hideContextMenu();
+            });
+            document.addEventListener('scroll', () => {
+                hideContextMenu();
+            }, true);
+
             if (enterBtn) {
                 if (meetingUrl) {
                     enterBtn.href = meetingUrl;
@@ -333,8 +516,8 @@
                     label: 'Canceled by teacher'
                 },
                 {
-                    value: 'Others',
-                    label: 'Others'
+                    value: 'Other',
+                    label: 'Other'
                 },
             ];
 
@@ -384,6 +567,8 @@
                 selectable: true,
                 selectMirror: true,
                 selectOverlap: false,
+                editable: true, // ← イベントをドラッグ可能に
+                eventDurationEditable: false, // ← 長さ(50分)はいじらせない
                 views: {
                     timeGridWeek: {
                         eventTimeFormat: {
@@ -414,13 +599,17 @@
                 selectAllow(span) {
                     const isMonth = calendar.view?.type === 'dayGridMonth';
                     if (isMonth) return false; // ← 月表示では新規作成不可
+                    if (isTeacherInactive) return false;
                     if (!hasMeetingUrl) return false;
                     return span.start.getTime() >= nowLocal().getTime();
                 },
 
                 // 複数枠作成
                 select(info) {
-
+                    if (isTeacherInactive) {               // ★ 念のための二重防御
+        calendar.unselect();
+        return;
+    }
                     // ★追加：URL未設定なら何もしない（メッセージ表示して解除）
                     if (!hasMeetingUrl) {
                         alert('To open a slot, set your meeting URL in Profile.');
@@ -446,8 +635,90 @@
                         .finally(() => calendar.unselect());
                 },
 
+                eventDrop(info) {
+                    if (isTeacherInactive) { info.revert(); return; }
+                    const ep = info.event.extendedProps || {};
+                    const isBooked = !!ep.student_id;
+                    const hasReport = ep.has_report === true;
+
+                    // 予約済み or レポートありは動かせない
+                    if (isBooked || hasReport) {
+                        info.revert();
+                        return;
+                    }
+
+                    // ★ 追加: 「元の開始時刻」が過去のスロットは動かさせない
+                    const oldStart = info.oldEvent.start; // ドラッグ前
+                    if (oldStart.getTime() < nowLocal().getTime()) {
+                        alert('Cannot move past slots.');
+                        info.revert();
+                        return;
+                    }
+
+                    // 月表示での移動禁止
+                    if (info.view.type === 'dayGridMonth') {
+                        info.revert();
+                        return;
+                    }
+
+                    // 過去への移動禁止（移動先が過去の場合）
+                    if (info.event.start.getTime() < nowLocal().getTime()) {
+                        alert('Cannot move slot to the past.');
+                        info.revert();
+                        return;
+                    }
+
+                    if (!moveTpl) {
+                        info.revert();
+                        return;
+                    }
+
+                    const id = info.event.id;
+                    const start = info.event.start;
+                    const date = fmtYMD(start);
+                    const time =
+                        `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+
+                    const url = moveTpl.replace('__ID__', id);
+
+                    fetch(url, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': csrf,
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                date,
+                                time
+                            })
+                        })
+                        .then(res => res.json().then(data => ({
+                            ok: res.ok,
+                            data
+                        })))
+                        .then(({
+                            ok,
+                            data
+                        }) => {
+                            if (!ok) {
+                                alert(data?.message || 'Failed to move slot.');
+                                info.revert();
+                            } else {
+                                calendar.refetchEvents();
+                            }
+                        })
+                        .catch(() => {
+                            alert('Network error.');
+                            info.revert();
+                        });
+                },
+
                 // クリックで削除/取消
                 eventClick(arg) {
+                    hideContextMenu(); // クリック時は一旦メニュー閉じる
+
+                    const event = arg.event;
                     const id = arg.event.id;
                     const ep = arg.event.extendedProps || {};
                     const isBooked = !!ep.student_id;
@@ -494,6 +765,10 @@
                             })
                             .then(() => calendar.refetchEvents());
                     }
+
+                    // ここから Open slot（複数選択対象）
+                    // 左クリック：選択トグル
+                    toggleSelectEvent(event);
                 },
 
                 eventSources: [{
@@ -578,6 +853,41 @@
                     wrap.style.fontWeight = '600';
                     wrap.style.setProperty('color', '#fff', 'important');
                     wrap.style.cursor = 'pointer';
+
+                    info.el.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        hideContextMenu();
+
+                        const event = info.event;
+                        const ep = event.extendedProps || {};
+                        const isBooked = !!ep.student_id;
+                        const hasReport = ep.has_report === true;
+
+                        const ONE_HOUR_MS = 60 * 60 * 1000;
+                        const start = event.start;
+                        const end = event.end ?? new Date(start.getTime() + ONE_HOUR_MS);
+                        const isPast = end.getTime() < Date.now();
+
+                        // 予約済み / レポートあり / 過去枠 は対象外
+                        if (isBooked || hasReport || isPast) {
+                            return;
+                        }
+
+                        // Open slot だけ対象
+                        const id = String(event.id);
+
+                        // まだ何も選んでない状態で右クリックされたら、そのイベントのみ選択状態にする
+                        if (selectedIds.size === 0) {
+                            toggleSelectEvent(event);
+                        }
+                        // もしこのイベントが選択されていない場合も、一緒に含める
+                        if (!selectedIds.has(id)) {
+                            toggleSelectEvent(event);
+                        }
+
+                        // マウス位置にメニュー表示
+                        showContextMenu(e.clientX, e.clientY);
+                    });
                 },
 
                 eventContent(arg) {
@@ -620,6 +930,8 @@
                 }
             });
             calendar.render();
+
+
 
             // ==== Bulk delete (by range) ====
             const bulkUrl = el.dataset.bulkdelUrl;
@@ -759,6 +1071,8 @@
 
             // ==== Report modal (inside DOMContentLoaded) ====
             const reportTpl = el.dataset.reportUrl;
+            const completeWrap = document.getElementById('rpt-complete-course-wrap');
+            const completeCb = document.getElementById('rpt-complete-course');
             const reportUpdateTpl = el.dataset.reportUpdateUrl;
             const reportModalEl = document.getElementById('reportModal');
             const reportModal = reportModalEl ? new bootstrap.Modal(reportModalEl) : null;
@@ -843,6 +1157,22 @@
                     // Studentリンク
                     const sLink = document.getElementById('rpt-student-link');
                     const sHistory = document.getElementById('rpt-student-history-link');
+
+                    // ★ コース完了チェックボックス制御
+                    if (completeWrap && completeCb) {
+                        if (student && course) {
+                            completeWrap.classList.remove('d-none');
+                            completeCb.disabled = false;
+
+                            const enrollmentStatus = j.enrollment?.status || 'active';
+                            completeCb.checked = (enrollmentStatus.toLowerCase() === 'completed');
+                        } else {
+                            // student or course が無い場合は無効＆非表示
+                            completeCb.checked = false;
+                            completeCb.disabled = true;
+                            completeWrap.classList.add('d-none');
+                        }
+                    }
 
                     if (sLink) {
                         if (student && student.name) {
@@ -954,11 +1284,21 @@
                 if (!reportUpdateTpl || !bookingId) return;
                 const url = reportUpdateTpl.replace('__ID__', bookingId);
 
-                // ← ここで payload を条件付きで組む
+                // ★ 完了チェックボックスの状態を enrollment_status に反映
+                let enrollmentStatus = null;
+                if (completeCb && !completeCb.disabled && !completeWrap.classList.contains('d-none')) {
+                    enrollmentStatus = completeCb.checked ? 'completed' : 'active';
+                }
+
                 const payload = {
                     status,
-                    feedback
+                    feedback,
                 };
+
+                if (enrollmentStatus !== null) {
+                    payload.enrollment_status = enrollmentStatus;
+                }
+
                 if (!isNextDisabled) {
                     const nextTopicRaw = nextSel.value;
                     if (!/^\d+$/.test(nextTopicRaw)) {
@@ -1074,6 +1414,32 @@
                 hint?.classList.toggle('d-none', !!disabled);
                 msg?.classList.toggle('d-none', !disabled);
             }
+            // ★ inactive の場合、ページ表示ごとに将来の Open 枠を一括削除（安全に冪等に）
+(async function purgeFutureOpensOnce() {
+    if (!isTeacherInactive) return;
+    if (!purgeFutureOpenUrl) return;
+
+    try {
+        const res = await fetch(purgeFutureOpenUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ confirm: true })
+        });
+        const j = await res.json().catch(() => ({}));
+        // 成功時はイベント再読込
+        if (res.ok && (j.ok ?? true)) {
+            calendar.refetchEvents();
+        } else {
+            console.warn('Purge future open failed', j);
+        }
+    } catch (e) {
+        console.warn('Purge request error', e);
+    }
+})();
         });
     </script>
 @endpush

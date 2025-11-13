@@ -38,7 +38,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $phpIntro->id,
             'title'       => 'PHPとは？',
             'content'     => 'PHPの歴史と特徴。',
-            'images'      => $encodeImages(['1_PHP.png','2_PHP.png','3_PHP.png']),
+            'images'      => $encodeImages(['1_PHP.png']),
             'pages'       => 3,
             'duration'    => 125,
         ]);
@@ -47,7 +47,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $phpIntro->id,
             'title'       => '環境構築',
             'content'     => 'XAMPP/MAMPで環境を整える。',
-            'images'      => $encodeImages(['4_PHP.png','5_PHP.png','6_PHP.png']),
+            'images'      => $encodeImages(['4_PHP.png']),
             'pages'       => 3,
             'duration'    => 210,
         ]);
@@ -58,7 +58,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $phpSyntax->id,
             'title'       => '変数と定数',
             'content'     => '変数と定数の基本。',
-            'images'      => $encodeImages(['7_PHP.png','8_PHP.png','9_PHP.png']),
+            'images'      => $encodeImages(['7_PHP.png']),
             'pages'       => 3,
             'duration'    => 180,
         ]);
@@ -67,7 +67,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $phpSyntax->id,
             'title'       => '条件分岐',
             'content'     => 'if, switch文。',
-            'images'      => $encodeImages(['10_PHP.png','11_PHP.png','12_PHP.png']),
+            'images'      => $encodeImages(['10_PHP.png']),
             'pages'       => 3,
             'duration'    => 240,
         ]);
@@ -78,7 +78,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $phpPrac->id,
             'title'       => 'フォーム処理',
             'content'     => 'ユーザー入力を処理する。',
-            'images'      => $encodeImages(['13_PHP.png','14_PHP.png','15_PHP.png']),
+            'images'      => $encodeImages(['13_PHP.png']),
             'pages'       => 3,
             'duration'    => 200,
         ]);
@@ -87,7 +87,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $phpPrac->id,
             'title'       => '掲示板アプリ',
             'content'     => 'シンプルなアプリを作成。',
-            'images'      => $encodeImages(['16_PHP.png','17_PHP.png','18_PHP.png']),
+            'images'      => $encodeImages(['16_PHP.png']),
             'pages'       => 3,
             'duration'    => 300,
         ]);
@@ -110,7 +110,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $jsIntro->id,
             'title'       => 'JavaScriptとは？',
             'content'     => 'ブラウザで動く言語。',
-            'images'      => $encodeImages(['1_JS.png','2_JS.png']),
+            'images'      => $encodeImages(['1_JS.png']),
             'pages'       => 2,
             'duration'    => 150,
         ]);
@@ -119,7 +119,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $jsIntro->id,
                 'title'       => '環境準備',
                 'content'     => 'ブラウザとエディタを準備。',
-                'images'      => $encodeImages(['3_JS.png','4_JS.png','5_JS.png']),
+                'images'      => $encodeImages(['3_JS.png']),
                 'pages'       => 3,
                 'duration'    => 200,
             ]);
@@ -130,7 +130,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $jsSyntax->id,
                 'title'       => '変数と型',
                 'content'     => 'let, const, 型について。',
-                'images'      => $encodeImages(['6_JS.png','7_JS.png','8_JS.png']),
+                'images'      => $encodeImages(['6_JS.png']),
                 'pages'       => 3,
                 'duration'    => 180,
             ]);
@@ -139,7 +139,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $jsSyntax->id,
                 'title'       => '関数',
                 'content'     => '関数の定義と呼び出し。',
-                'images'      => $encodeImages(['9_JS.png','10_JS.png','11_JS.png']),
+                'images'      => $encodeImages(['9_JS.png']),
                 'pages'       => 3,
                 'duration'    => 240,
             ]);
@@ -150,7 +150,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $jsDom->id,
                 'title'       => '要素の取得',
                 'content'     => 'getElementById, querySelector。',
-                'images'      => $encodeImages(['12_JS.png','13_JS.png','14_JS.png']),
+                'images'      => $encodeImages(['12_JS.png']),
                 'pages'       => 3,
                 'duration'    => 200,
             ]);
@@ -159,7 +159,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $jsDom->id,
                 'title'       => 'イベント処理',
                 'content'     => 'クリックイベントの設定。',
-                'images'      => $encodeImages(['15_JS.png','16_JS.png','17_JS.png']),
+                'images'      => $encodeImages(['15_JS.png']),
                 'pages'       => 3,
                 'duration'    => 220,
             ]);
@@ -182,7 +182,7 @@ class CourseSeeder extends Seeder
             'topic_id'  => $enBasicSec1->id,
             'title'       => '挨拶',
             'content'     => 'Hello, Good morning など。',
-            'images'      => $encodeImages(['1E.png','2E.png','3E.png']),
+            'images'      => $encodeImages(['1E.png']),
             'pages'       => 3,
             'duration'    => 180,
         ]);
@@ -191,7 +191,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $enBasicSec1->id,
                 'title'       => '自己紹介',
                 'content'     => '名前や出身を伝える。',
-                'images'      => $encodeImages(['4E.png','5E.png','6E.png']),
+                'images'      => $encodeImages(['4E.png']),
                 'pages'       => 3,
                 'duration'    => 200,
             ]);
@@ -202,7 +202,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $enBasicSec2->id,
                 'title'       => '買い物の会話',
                 'content'     => 'お店で使える表現。',
-                'images'      => $encodeImages(['7E.png','8E.png']),
+                'images'      => $encodeImages(['7E.png']),
                 'pages'       => 2,
                 'duration'    => 320,
             ]);
@@ -211,7 +211,7 @@ class CourseSeeder extends Seeder
                 'topic_id'    => $enBasicSec2->id,
                 'title'       => '値段を尋ねる',
                 'content'     => 'How much is this? の使い方。',
-                'images'      => $encodeImages(['9E.png','10E.png']),
+                'images'      => $encodeImages(['9E.png']),
                 'pages'       => 2,
                 'duration'    => 180,
             ]);
@@ -234,7 +234,7 @@ class CourseSeeder extends Seeder
             'topic_id'    => $pyIntro->id,
             'title'       => 'Pythonとは？',
             'content'     => 'AIやデータ分析に強い言語。',
-            'images'      => $encodeImages(['1_Py.png','2_Py.png']),
+            'images'      => $encodeImages(['1_Py.png']),
             'pages'       => 2,
             'duration'    => 140,
         ]);
@@ -243,7 +243,7 @@ class CourseSeeder extends Seeder
             'topic_id'    => $pyIntro->id,
             'title'       => '環境構築',
             'content'     => 'PythonとIDEを準備。',
-            'images'      => $encodeImages(['3_Py.png','4_Py.png','5_Py.png']),
+            'images'      => $encodeImages(['3_Py.png']),
             'pages'       => 3,
             'duration'    => 180,
         ]);
@@ -254,7 +254,7 @@ class CourseSeeder extends Seeder
             'topic_id'    => $pySyntax->id,
             'title'       => '変数と型',
             'content'     => '動的型付けの仕組み。',
-            'images'      => $encodeImages(['6_Py.png','7_Py.png','8_Py.png']),
+            'images'      => $encodeImages(['6_Py.png']),
             'pages'       => 3,
             'duration'    => 120,
         ]);
@@ -263,7 +263,7 @@ class CourseSeeder extends Seeder
             'topic_id'    => $pySyntax->id,
             'title'       => 'ループ',
             'content'     => 'for, whileの使い方。',
-            'images'      => $encodeImages(['9_Py.png','10_Py.png','11_Py.png','12_Py.png']),
+            'images'      => $encodeImages(['9_Py.png']),
             'pages'       => 4,
             'duration'    => 220,
         ]);
@@ -283,7 +283,7 @@ class CourseSeeder extends Seeder
             'topic_id'    => $pyData->id,
             'title'       => 'ファイル操作',
             'content'     => 'ファイルの読み書き。',
-            'images'      => $encodeImages(['14_Py.png','15_Py.png','16_Py.png']),
+            'images'      => $encodeImages(['14_Py.png']),
             'pages'       => 3,
             'duration'    => 140,
         ]);

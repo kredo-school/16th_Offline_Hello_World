@@ -235,11 +235,16 @@
                     @forelse ($teachers as $t)
                         @php
                             $avatar = $t->avatar ? asset('storage/' . $t->avatar) : asset('images/avatar1.jpg');
-                            $firstTwo = $t->coursesTaught?->take(2) ?? collect(); // モデルに合わせて courses / coursesTaught を選択
-                            $extraCount = max(($t->courses_taught_count ?? $firstTwo->count()) - $firstTwo->count(), 0);
+
+                            // ✅ 正しいリレーション名に揃える (courses)
+                            $firstTwo = $t->skills?->take(2) ?? collect();
+                            $totalCount = $t->skills?->count() ?? 0;
+                            $extraCount = max($totalCount - $firstTwo->count(), 0);
+
                             $rowKey = strtolower(($t->name ?? '') . ' ' . ($t->email ?? ''));
                             $isActive = $t->status === 'active';
                         @endphp
+
                         <tr data-key="{{ $rowKey }}">
                             {{-- NAME --}}
                             <td>
@@ -263,6 +268,7 @@
                                     @foreach ($firstTwo as $c)
                                         <span class="chip">{{ $c->title }}</span>
                                     @endforeach
+
                                     @if ($extraCount > 0)
                                         <span class="badge-more">+{{ $extraCount }} more</span>
                                     @endif
@@ -297,6 +303,7 @@
                             </td>
                         </tr>
                     @empty
+
                         <tr>
                             <td colspan="5" class="text-center text-muted py-5">No teachers yet</td>
                         </tr>
@@ -312,37 +319,6 @@
         </div>
     @endif
 
-    {{-- Add Modal --}}
-    {{-- <div class="modal fade" id="addTeacherModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content" style="border-radius:16px;border:1.5px solid var(--stroke)">
-      <div class="modal-header border-0">
-        <h5 class="modal-title fw-bold text-dark">Add a teacher</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="POST" action="{{ route('admin.teachers.store') }}">
-        @csrf
-        <div class="modal-body pt-0">
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Name</label>
-            <input name="name" type="text" class="form-control" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-semibold">Email</label>
-            <input name="email" type="email" class="form-control" required>
-          </div>
-          <div class="mb-1">
-            <label class="form-label fw-semibold">Password</label>
-            <input name="password" type="password" class="form-control" required>
-          </div>
-        </div>
-        <div class="modal-footer border-0">
-          <button class="btn add-btn" type="submit">＋ Add</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div> --}}
     {{-- Add Modal --}}
     <div class="modal fade" id="addTeacherModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
@@ -365,28 +341,71 @@
                             @enderror
                         </div>
 
-                        {{-- Courses（複数選択） --}}
+                        {{-- Courses --}}
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Courses</label>
-                            <select name="course_ids[]" class="form-select" multiple size="5">
-                                @php $selected = collect(old('course_ids', []))->map(fn($v)=>(int)$v)->all(); @endphp
-                                @foreach ($courses as $c)
-                                    <option value="{{ $c->id }}"
-                                        {{ in_array($c->id, $selected) ? 'selected' : '' }}>
-                                        {{ $c->title ?? $c->name }} 
-                                    </option>
-                                @endforeach
-                            </select>
-                            <div class="form-text"></div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <label class="form-label fw-semibold m-0">Courses</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        id="checkAllBtn">All</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        id="uncheckAllBtn">Clear</button>
+                                </div>
+                            </div>
+
+                            @php
+                                $selected = collect(old('course_ids', []))->map(fn($v) => (int) $v)->all();
+                            @endphp
+
+                            <div class="border rounded p-2 mt-2" style="max-height:220px; overflow:auto;">
+                                <div class="row row-cols-1 row-cols-sm-2 g-1" id="courseGrid">
+                                    @foreach ($courses as $c)
+                                    <div class="col course-item" data-label="{{ strtolower($c->title ?? $c->name) }}">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="course_ids[]"
+                                                    id="course_{{ $c->id }}" value="{{ $c->id }}"
+                                                    {{ in_array($c->id, $selected) ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="course_{{ $c->id }}">
+                                                    {{ $c->title ?? $c->name }}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
                             @error('course_ids')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror
                         </div>
 
+                        <script>
+                            document.addEventListener('DOMContentLoaded', () => {
+                                const grid = document.getElementById('courseGrid');
+                                const filter = document.getElementById('courseFilter');
+                                const allBtn = document.getElementById('checkAllBtn');
+                                const clrBtn = document.getElementById('uncheckAllBtn');
+
+                                if (filter) {
+                                    filter.addEventListener('input', function() {
+                                        const q = this.value.trim().toLowerCase();
+                                        grid.querySelectorAll('.course-item').forEach(item => {
+                                            item.style.display = item.dataset.label.includes(q) ? '' : 'none';
+                                        });
+                                    });
+                                }
+                                if (allBtn) allBtn.addEventListener('click', () =>
+                                    grid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true));
+                                if (clrBtn) clrBtn.addEventListener('click', () =>
+                                    grid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false));
+                            });
+                        </script>
+
                         {{-- Email --}}
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Email</label>
-                            <input name="email" type="email" class="form-control" value="{{ old('email') }}" required>
+                            <input name="email" type="email" class="form-control" value="{{ old('email') }}"
+                                required>
                             @error('email')
                                 <div class="text-danger small mt-1">{{ $message }}</div>
                             @enderror
@@ -404,7 +423,11 @@
                     </div>
 
                     <div class="modal-footer border-0">
-                        <button class="btn add-btn" type="submit">＋ Add</button>
+                        <button type="submit" class="btn btn-success px-4">+ Add</button>
+                        {{-- <button class="btn add-btn" type="submit">＋ Add</button> --}}
+                        {{-- <a href="{{ route('admin.teachers.store') }}" class="btn btn-success rounded-pill px-3">
+                            ＋ Add
+                        </a> --}}
                     </div>
                 </form>
             </div>

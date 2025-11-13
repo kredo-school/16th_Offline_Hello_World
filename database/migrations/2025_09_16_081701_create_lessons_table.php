@@ -13,9 +13,12 @@ return new class extends Migration
     {
         Schema::create('lessons', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('topic_id')->nullable();
             $table->foreignId('course_id')->constrained()->onDelete('cascade'); 
             $table->string('title');  
-            $table->text('content')->nullable(); 
+            $table->text('content')->nullable();
+            $table->string('image')->nullable();
+            $table->string('video')->nullable();
             $table->integer('order')->default(0);
             $table->timestamps();
         });

@@ -13,7 +13,7 @@ class SelfLearningController extends Controller
   public function index(Request $request)
 {
     $search = $request->input('search');
-    $user = auth()->user();
+    $user = Auth::user();
 
     $coursesQuery = $user->courses();
 
@@ -60,7 +60,7 @@ class SelfLearningController extends Controller
     // コース詳細
     public function show($id)
 {
-    $user = auth()->user();
+    $user = Auth::user();
 
     $course = $user->courses()
     ->with(['topics.lessons'])

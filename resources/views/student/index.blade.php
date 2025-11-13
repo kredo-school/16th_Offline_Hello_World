@@ -5,6 +5,27 @@
 @section('content')
     {{-- ===== Up next (date & time unified) ===== --}}
     <section class="container py-3">
+        @php
+    $isStudentInactive = mb_strtolower(Auth::user()->status ?? '') === 'inactive';
+@endphp
+@if ($isStudentInactive)
+  <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 sticky-top"
+       role="alert"
+       style="top: 0; z-index: 1080;">
+    <div class="container d-flex align-items-start gap-2 py-2">
+      <i class="fa-solid fa-triangle-exclamation mt-1"></i>
+      <div>
+        <div class="fw-semibold">Account is deactivated</div>
+        <div class="small">
+          New bookings are disabled. You can still attend your existing bookings.
+          If this is a mistake, please contact support.
+        </div>
+      </div>
+      <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  </div>
+@endif
+
         <h2 class="h4 mb-2">Up next</h2>
 
         @if ($upNext)
@@ -35,10 +56,24 @@
                 $courseId = $upNext->course->id ?? null;
                 $teacherId = $teacherModel->id ?? null;
                 // $iconUrl = $upNext->course->image_url ?? asset('images/placeholder-course.png');
-                $iconUrl =
-                    $upNext->course && $upNext->course->image_url
-                        ? asset('storage/' . ltrim($upNext->course->image_url, '/'))
-                        : asset('images/placeholder-course.png');
+                // $iconUrl =
+                //     $upNext->course && $upNext->course->image
+                //         ? asset('storage/' . ltrim($upNext->course->image, '/'))
+                //         : asset('images/placeholder-course.png');
+                $img = $upNext->course->image ?? null; // DBに保存している値（パス or データURL想定）
+
+    // 1) data: で始まる → そのまま使う
+    if (is_string($img) && Str::startsWith($img, 'data:image/')) {
+        $iconUrl = $img;
+
+    // 2) ストレージへの相対パス（例: 'courses/xxx.png'）→ asset('storage/...')に変換
+    } elseif (is_string($img) && !empty($img)) {
+        $iconUrl = asset('storage/' . ltrim($img, '/'));
+
+    // 3) 何もなければプレースホルダ
+    } else {
+        $iconUrl = asset('images/placeholder-course.png');
+    }
 
                 $whenStr = $dt->format('D, M j H:i') . '–' . $end->format('H:i');
                 $isToday = $dt->isToday();
@@ -203,14 +238,23 @@
                             {{-- <div class="mb-3 col-6"> --}}
                             <div class="mb-2">
                                 <label for="course_id" class="form-label fw-semibold">Course</label>
-                                <select name="course_id" id="course_id" class="form-select form-select-sm" required>
+                                <select name="course_id" id="course_id" class="form-select form-select-sm" required @disabled($isStudentInactive) aria-disabled="{{ $isStudentInactive ? 'true' : 'false' }}">
                                     <option value="" disabled {{ old('course_id') ? '' : 'selected' }}>Choose a
                                         course
                                     </option>
                                     @foreach ($courses as $course)
+                                        @php
+                                            $enrollStatus = $course->pivot->status ?? null;
+                                            $isCompleted = $enrollStatus === 'completed';
+                                        @endphp
+
                                         <option value="{{ $course->id }}"
-                                            {{ old('course_id') == $course->id ? 'selected' : '' }}>
+                                            @if ($isCompleted) disabled @endif
+                                            @if (!$isCompleted && old('course_id') == $course->id) selected @endif>
                                             {{ $course->title }}
+                                            @if ($isCompleted)
+                                                (Completed)
+                                            @endif
                                         </option>
                                     @endforeach
                                 </select>
@@ -280,7 +324,8 @@
                             <input type="hidden" name="booking_id" id="booking_id">
                             <input type="hidden" name="teacher_id" id="teacher_id">
 
-                            <button type="submit" class="btn btn-primary w-100 mt-4">Book a class</button>
+                            <button type="submit" class="btn btn-primary w-100 mt-4" @disabled($isStudentInactive)
+    aria-disabled="{{ $isStudentInactive ? 'true' : 'false' }}">Book a class</button>
                         </form>
 
                         {{-- ▼ 先生一覧モーダル（Bootstrap） --}}
@@ -888,8 +933,8 @@
                     --fc-today-bg-color: rgba(13, 110, 253, .08);
 
                     /* --fc-event-bg-color: rgba(13, 110, 253, .10);
-                                                                                                                                                                                                                                                                                --fc-event-border-color: rgba(13, 110, 253, .40);
-                                                                                                                                                                                                                                                                                --fc-event-text-color: #0d6efd; */
+                                                                                                                                                                                                                                                                                        --fc-event-border-color: rgba(13, 110, 253, .40);
+                                                                                                                                                                                                                                                                                        --fc-event-text-color: #0d6efd; */
 
                     font-size: 0.90rem;
                     /* カレンダー内を少し小さめ */
@@ -1369,10 +1414,24 @@
                     $topic = $b->topic->name ?? 'Topic';
                     $teacher = $b->teacher->name ?? 'Teacher';
                     // $iconUrl = $b->course->image_url ?? asset('images/placeholder-course.png');
-                    $iconUrl =
-                        $b->course && $b->course->image_url
-                            ? asset('storage/' . ltrim($b->course->image_url, '/'))
-                            : asset('images/placeholder-course.png');
+                    // $iconUrl =
+                    //     $b->course && $b->course->image
+                    //         ? asset('storage/' . ltrim($b->course->image, '/'))
+                    //         : asset('images/placeholder-course.png');
+                    $img = $upNext->course->image ?? null; // DBに保存している値（パス or データURL想定）
+
+    // 1) data: で始まる → そのまま使う
+    if (is_string($img) && Str::startsWith($img, 'data:image/')) {
+        $iconUrl = $img;
+
+    // 2) ストレージへの相対パス（例: 'courses/xxx.png'）→ asset('storage/...')に変換
+    } elseif (is_string($img) && !empty($img)) {
+        $iconUrl = asset('storage/' . ltrim($img, '/'));
+
+    // 3) 何もなければプレースホルダ
+    } else {
+        $iconUrl = asset('images/placeholder-course.png');
+    }
                     // 例: Wed, Oct 29 18:00–18:50
                     $whenStr = $dt->format('D, M j H:i') . '–' . $end->format('H:i');
 
@@ -1445,7 +1504,7 @@
                                         @else
                                             <span class="text-body fw-bold">{{ $teacher }}</span>
                                         @endif
-                                       @if ($statusRaw !== '')
+                                        @if ($statusRaw !== '')
                                             <span class="{{ $statusClass }} ms-2">
                                                 {{ $statusRaw }}
                                             </span>

@@ -73,23 +73,23 @@
 
     {{-- セクション一覧 --}}
     <div class="accordion course-accordion" id="courseAccordion">
-        @foreach($course->topics as $index => $section)
+        @foreach($course->topics as $index => $topic)
             <div class="accordion-item">
                 <h2 class="accordion-header" id="heading{{ $index }}">
                     <button class="accordion-button {{ $index > 0 ? 'collapsed' : '' }}" type="button"
                         data-bs-toggle="collapse" data-bs-target="#collapse{{ $index }}">
-                        <span class="fw-bold">{{ $section->title }}</span>
+                        <span class="fw-bold">{{ $topic->title }}</span>
                       @php
-                        // 各sectionの全lessonのduration合計（秒）
-                        $totalSeconds = $section->lessons->sum('duration');
+                        // 各topicの全lessonのduration合計（秒）
+                        $totalSeconds = $topic->lessons->sum('duration');
                         $minutes = floor($totalSeconds / 60);
                         $seconds = $totalSeconds % 60;
                         $formattedDuration = sprintf('%02d:%02d', $minutes, $seconds);
                     @endphp
 
                     <span class="ms-auto section-meta text-muted small">
-                        {{ $section->lessons->count() }} lectures ・
-                        {{ $section->lessons->sum('pages') }} pages ・
+                        {{ $topic->lessons->count() }} lectures ・
+                        {{ $topic->lessons->sum('pages') }} pages ・
                         {{ $formattedDuration }}
                     </span>
 
@@ -101,7 +101,7 @@
                      class="accordion-collapse collapse {{ $index == 0 ? 'show' : '' }}"
                      data-bs-parent="#courseAccordion">
                     <div class="accordion-body">
-                        @foreach($section->lessons as $lesson)
+                        @foreach($topic->lessons as $lesson)
                             <div class="lesson-item">
                                 <span class="lesson-title">
                                     <i class="fa-solid fa-video me-2 text-dark"></i>

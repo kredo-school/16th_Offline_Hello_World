@@ -12,9 +12,28 @@ use Illuminate\Support\Facades\Auth;
 
 class LessonHistoryController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, User $teacher)
     {
-        $teacher = Auth::user();
+        // ===== アクセス制限 =====
+        $viewer = $request->user();
+
+        // 未ログイン → 閲覧不可
+        if (!$viewer) {
+            abort(403);
+        }
+
+        $viewerId = (int) $viewer->id;
+        $roleId   = (int) ($viewer->role_id ?? 0);
+        $roleName = (string) ($viewer->role ?? '');
+
+        $isSelf  = ($viewerId === (int) $teacher->id);                 // 対象teacher本人
+        $isAdmin = ($roleId === 1 || $roleName === 'admin');           // admin
+
+        // 本人でも admin でもない → 403
+        if (!($isSelf || $isAdmin)) {
+            abort(403);
+        }
+        // ===== アクセス制限ここまで =====
 
         // 必要なら認可
         // abort_unless($teacher && $teacher->role === 'teacher', 403);
@@ -66,7 +85,7 @@ class LessonHistoryController extends Controller
         $bookings = Booking::query()
             ->with([
                 'student:id,name',
-                'course:id,title,image_url',
+                'course:id,title,image',
                 'topic:id,course_id,name',
                 'report:booking_id,status,next_topic',
             ])

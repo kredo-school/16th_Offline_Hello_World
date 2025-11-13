@@ -16,12 +16,13 @@ class IndexController extends Controller
         $user = Auth::user();
         $tz   = config('app.timezone', 'Asia/Manila');
 
-        $courses = $user->courses() // enrollments tableからstudentに紐づくcourseを取得
-        ->select('courses.id', 'courses.title')
-        ->with(['topics:id,course_id,name']) // topics tableから、courseに紐づくrecordを事前に取得
-        ->wherePivot('status', 'active')
-        ->orderBy('courses.title')
-        ->get();
+        $courses = $user->courses()
+            ->select('courses.id', 'courses.title', 'courses.status')
+            ->with(['topics:id,course_id,name'])
+            ->withPivot('status') // enrollments の status を見るため
+            ->where('courses.status', 1) // ★ coursesテーブル側が有効(1)のものだけ
+            ->orderBy('courses.title')
+            ->get();
 
         // Up next booking（直近の予約1件）を取得追加
         $now     = Carbon::now($tz); // 日時を取得

@@ -28,6 +28,29 @@ class ProfileController extends Controller
         |     'completed' -> Completed
         |     それ以外(null, 'active', など) -> Active
         */
+        // ★ このプロフィールは「student専用」。
+    //   teacher/admin など別ロールのユーザーIDでアクセスされた場合は 404 にします。
+    $roleId   = (int) ($user->role_id ?? 0);
+    $roleName = (string) ($user->role ?? '');
+
+    $isStudent = ($roleId === 3 || $roleName === 'student');
+
+    if (!$isStudent) {
+        // 不正な student URL として扱うので 404 のほうが自然
+        abort(404);
+    }
+
+        // ★ 追加：inactive のときは詳細を出さずフラグだけ渡す
+    if ($user->status !== 'active') {
+        return view('student.profile', [
+            'user'        => $user,
+            'isInactive'  => true,
+            // 下はビュー側で参照されてもエラーにならないように空で渡しておく（任意）
+            'activeCourses'    => collect(),
+            'completedCourses' => collect(),
+            'history'          => null,
+        ]);
+    }
 
         $enrolledCourses = $user->courses()
             ->with('topics:id,course_id,name')

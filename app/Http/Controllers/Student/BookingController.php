@@ -13,15 +13,40 @@ use App\Models\Topic;
 
 class BookingController extends Controller
 {
+    private function currentStudentOrAbort()
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        abort(403, 'Login required.');
+    }
+
+    $roleId   = (int) ($user->role_id ?? 0);
+    $roleName = (string) ($user->role ?? '');
+
+    // ロール名・role_id の定義に合わせて調整
+    $isStudent = ($roleId === 3 || $roleName === 'student');
+
+    if (!$isStudent) {
+        abort(403, 'Only students can perform this action.');
+    }
+
+    return $user;
+}
+
     public function store(Request $request)
     {
+         // ★ 本人 student 以外は 403
+    $student = $this->currentStudentOrAbort();
+    $studentId = $student->id;
+
         $validated = $request->validate([
             'booking_id' => ['required', 'integer', 'exists:bookings,id'],
             'course_id'  => ['required', 'integer', 'exists:courses,id'],
             'topic_id'   => ['required', 'integer', 'exists:topics,id'],
         ]);
 
-        $studentId = Auth::id();
+        // $studentId = Auth::id();
 
         // 対象のbookingを取得（teacherがopenしている枠）
         $booking = Booking::where('id', $validated['booking_id'])->first();
@@ -51,10 +76,11 @@ class BookingController extends Controller
      */
     public function destroy(Booking $booking, Request $request)
 {
-    $user = Auth::user();
+    // ★ 本人 student チェック
+    $student = $this->currentStudentOrAbort();
 
     // 1) 自分の予約だけキャンセル可能
-    if ((int) $booking->student_id !== (int) $user->id) {
+    if ((int) $booking->student_id !== (int) $student->id) {
         abort(403, 'You are not allowed to cancel this booking.');
     }
 

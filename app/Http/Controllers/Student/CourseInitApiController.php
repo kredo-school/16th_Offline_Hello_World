@@ -16,6 +16,7 @@ class CourseInitApiController extends Controller
 
         // 1) トピック一覧
         $topics = $course->topics()
+            ->where('status', 1)
             ->select('id', 'name')
             ->orderBy('id')
             ->get();
@@ -24,7 +25,9 @@ class CourseInitApiController extends Controller
         $suggested = $this->suggestedTopicId($studentId, $course->id, $topics);
 
         // 3) 対象コースを担当できる teacher の空きスロット（現在+1時間以降）
-        $teacherIds = $course->teachers()->pluck('users.id');
+        $teacherIds = $course->teachers()
+    ->where('users.status', 'active')  // ★ 文字列で判定
+    ->pluck('users.id');
 
         $slots = Booking::query()
     ->whereIn('teacher_id', $teacherIds)
@@ -88,7 +91,7 @@ class CourseInitApiController extends Controller
 
         if ($lastWithNext) {
             $next = (int) $lastWithNext->report->next_topic;
-            $inCourse = Topic::where('id',$next)->where('course_id',$courseId)->exists();
+            $inCourse = Topic::where('id',$next)->where('course_id',$courseId)->where('status', 1)->exists();
             if ($inCourse) return $next;
         }
 
@@ -102,7 +105,7 @@ class CourseInitApiController extends Controller
 
         if ($lastPast && optional($lastPast->report)->next_topic) {
             $next = (int) $lastPast->report->next_topic;
-            $inCourse = Topic::where('id',$next)->where('course_id',$courseId)->exists();
+            $inCourse = Topic::where('id',$next)->where('course_id',$courseId)->where('status', 1) ->exists();
             if ($inCourse) return $next;
         }
 

@@ -6,10 +6,10 @@
     $isTeacher = (string) $roleId === '2';
     $isStudent = (string) $roleId === '3';
 
-    // avatar_path からURL生成（無ければデフォルト）
-    $avatarUrl = !empty($auth->avatar_path)
-        ? asset('storage/' . ltrim($auth->avatar_path, '/'))
-        : asset('images/default-avatar.png');
+    // 物理ファイルの有無までチェック（storage:link 済み前提）
+   $avatarPath = ltrim((string) ($auth->avatar_path ?? ''), '/');
+   $hasAvatar  = $avatarPath !== '' && Storage::disk('public')->exists($avatarPath);
+   $avatarUrl  = $hasAvatar ? asset('storage/'.$avatarPath) : null;
 @endphp
 
 @if ($isAdmin)
@@ -74,8 +74,8 @@
                 href="{{ route('teachers.index') }}"><i class="fa-solid fa-calendar-days me-2"></i> Schedule</a>
             <a class="nav-link s-link mb-1 {{ request()->routeIs('courses.index') ? 'active' : '' }}"
                 href="{{ route('courses.index') }}"><i class="fa-solid fa-book-open me-2"></i> Courses</a>
-            <a class="nav-link s-link mb-1 {{ request()->routeIs('teachers.lessonhistory', ['student' => Auth::id()]) ? 'active' : '' }}"
-                href="{{ route('teachers.lessonhistory') }}">
+            <a class="nav-link s-link mb-1 {{ request()->routeIs('teachers.lessonhistory') ? 'active' : '' }}"
+                href="{{ route('teachers.lessonhistory', ['teacher' => Auth::id()]) }}">
                 <i class="fa-solid fa-clock-rotate-left me-2"></i> Lesson History
             </a>
             {{-- <a class="nav-link s-link" href="#">Forum</a> --}}
@@ -87,7 +87,7 @@
                 {{-- User (click to Profile) --}}
                 <a href="{{ route('teachers.profile', ['user_id' => Auth::id()]) }}"
                     class="nav-link s-link d-flex align-items-center gap-2 p-0 text-start w-100">
-                    <img src="{{ $avatarUrl }}" alt="Profile" class="sidebar-avatar-square">
+                     <x-avatar :url="$avatarUrl" :name="$auth->name" size="36" rounded="md" />
                     <span class="text-truncate">{{ Auth::user()->name }}</span>
                 </a>
 
@@ -131,7 +131,7 @@
             <div class="nav flex-column w-100 px-4 fw-semibold s-nav">
                 <a href="{{ route('students.profile.show', ['user' => Auth::id()]) }}"
                     class="nav-link s-link d-flex align-items-center gap-2 p-0 text-start w-100">
-                    <img src="{{ $avatarUrl }}" alt="Profile" class="sidebar-avatar-square">
+                    <x-avatar :url="$avatarUrl" :name="$auth->name" size="36" rounded="md" />
                     <span class="text-truncate">{{ Auth::user()->name }}</span>
                 </a>
 

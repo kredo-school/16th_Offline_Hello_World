@@ -10,12 +10,12 @@ return new class extends Migration {
         // 1) 旧値を新値にマッピング（存在する場合のみ）
         DB::table('reports')
             ->where('status', 'leave in the middle')
-            ->update(['status' => 'others']);
+            ->update(['status' => 'other']);
 
         // 2) ENUM定義を差し替え（MySQL）
         DB::statement("
             ALTER TABLE `reports`
-            MODIFY `status` ENUM('attended', 'absent', 'canceled by teacher', 'others')
+            MODIFY `status` ENUM('attended', 'absent', 'canceled by teacher', 'other')
             NOT NULL DEFAULT 'attended'
         ");
     }
@@ -24,7 +24,7 @@ return new class extends Migration {
     {
         // ダウングレード時のために、まず 'others' を 旧値に戻せるようにしておく
         DB::table('reports')
-            ->where('status', 'others')
+            ->where('status', 'other')
             ->update(['status' => 'leave in the middle']);
 
         // 旧ENUMへ戻す

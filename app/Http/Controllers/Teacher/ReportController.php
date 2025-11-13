@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Enrollment;
 
 class ReportController extends Controller
 {
@@ -17,7 +18,7 @@ class ReportController extends Controller
         'Attended',
         'Absent',
         'Canceled by teacher',
-        'Others',
+        'Other',
     ];
 
     /**
@@ -46,6 +47,7 @@ class ReportController extends Controller
     // ★ 予約のコースに紐づくトピックのみ取得（id昇順）
     $topics = \App\Models\Topic::query()
         ->when($booking->course_id, fn($q) => $q->where('course_id', $booking->course_id))
+        ->where('status', 1)
         ->orderBy('id')
         ->get(['id','name'])
         ->map(fn($t) => ['id' => $t->id, 'name' => $t->name ?? ''])
@@ -53,6 +55,19 @@ class ReportController extends Controller
 
     // ★ 既定選択：report.next_topic があればそれ、無ければ予約の topic_id
     $preferredTopicId = optional($booking->report)->next_topic ?? $booking->topic_id;
+
+    // topics(=status=1のみ) に含まれていない場合はリセット
+if ($preferredTopicId && !$topics->contains(fn($t) => $t['id'] === $preferredTopicId)) {
+    $preferredTopicId = $topics->first()['id'] ?? null;
+}
+
+        // ★ Enrollment（あれば）取得
+    $enrollment = null;
+    if ($booking->student_id && $booking->course_id) {
+        $enrollment = Enrollment::where('user_id', $booking->student_id)
+            ->where('course_id', $booking->course_id)
+            ->first();
+    }
 
     return response()->json([
         'booking' => [
@@ -87,6 +102,11 @@ class ReportController extends Controller
         ],
         'topics' => $topics,
         'preferred_topic_id' => $preferredTopicId, // ★ JS側がそのまま初期選択できるように
+        // ★ enrollment 情報をフロントに渡す
+        'enrollment' => $enrollment ? [
+            'id'     => $enrollment->id,
+            'status' => $enrollment->status, // 'active' or 'completed' など
+        ] : null,
     ]);
 }
 
@@ -94,35 +114,65 @@ class ReportController extends Controller
      * PATCH /teachers/reports/{booking}
      * Report の status / feedback を保存（Upsert）
      */
-   public function update(Request $request, Booking $booking)
+  public function update(Request $request, Booking $booking)
 {
     if ($booking->teacher_id !== Auth::id()) abort(403);
 
     $data = $request->validate([
-        'status'     => ['sometimes','nullable','string','in:' . implode(',', self::ALLOWED_STATUSES)],
-        'feedback'   => ['sometimes','nullable','string','max:5000'],
-        'next_topic' => ['sometimes','nullable','integer','exists:topics,id'],
+        'status'            => ['sometimes','nullable','string','in:' . implode(',', self::ALLOWED_STATUSES)],
+        'feedback'          => ['sometimes','nullable','string','max:5000'],
+        'next_topic'        => ['sometimes','nullable','integer','exists:topics,id'],
+        // ★ チェックボックス用（completed / active）
+        'enrollment_status' => ['sometimes','nullable','in:active,completed'],
     ]);
 
     $result = DB::transaction(function () use ($booking, $data) {
 
-        // 1) まず「現在のレポート」を必ず保存（どの場合でも next_topic はここに入れる）
+        // 1) Report upsert
         $report = Report::firstOrNew(['booking_id' => $booking->id]);
-        if (array_key_exists('status', $data))   $report->status   = $data['status'];
-        if (array_key_exists('feedback', $data)) $report->feedback = $data['feedback'];
-        if (array_key_exists('next_topic', $data)) $report->next_topic = $data['next_topic'];
+
+        if (array_key_exists('status', $data)) {
+            $report->status = $data['status'];
+        }
+        if (array_key_exists('feedback', $data)) {
+            $report->feedback = $data['feedback'];
+        }
+        if (array_key_exists('next_topic', $data)) {
+            $report->next_topic = $data['next_topic'];
+        }
+
         $report->save();
+
+        // 2) Enrollment 更新（チェックボックスの状態をそのまま反映）
+        $updatedEnrollment = null;
+        if (
+            array_key_exists('enrollment_status', $data)
+            && $booking->student_id
+            && $booking->course_id
+            && $data['enrollment_status'] !== null
+        ) {
+            $enrollment = Enrollment::firstOrNew([
+                'user_id'   => $booking->student_id,
+                'course_id' => $booking->course_id,
+            ]);
+            $enrollment->status = $data['enrollment_status']; // 'active' or 'completed'
+            $enrollment->save();
+
+            $updatedEnrollment = $enrollment->only(['id','user_id','course_id','status']);
+        }
+
+        // 3) next_topic の伝播ロジック（元のまま）
 
         $nextTopicId = $data['next_topic'] ?? null;
         if (!$nextTopicId) {
             return [
                 'updated_report' => $report->only(['id','booking_id','status','feedback','next_topic']),
+                'enrollment'     => $updatedEnrollment,
                 'touched'        => null,
                 'note'           => 'next_topic not provided; only current report saved.',
             ];
         }
 
-        // 2) 同一生徒×同一コースの「現在より未来」の予約一覧（近い順）
         $studentId = $booking->student_id;
         $courseId  = $booking->course_id;
         $curDate   = $booking->date;
@@ -141,12 +191,11 @@ class ReportController extends Controller
             ->orderBy('date')->orderBy('time')
             ->get();
 
-        $norm = fn($s) => strtolower(trim((string)$s));
+        $norm = fn($s) => strtolower(trim((string) $s));
         $isNonCanceled = function ($rep) use ($norm) {
             return $rep && $norm($rep->status) !== 'canceled by teacher';
         };
 
-        // 3) ①② いずれでも「reportあり × 非キャンセル」が将来に存在 → 何もしない
         $hasFutureNonCanceledWithReport = $future->first(
             fn($b) => $isNonCanceled($b->report)
         ) !== null;
@@ -154,12 +203,12 @@ class ReportController extends Controller
         if ($hasFutureNonCanceledWithReport) {
             return [
                 'updated_report' => $report->only(['id','booking_id','status','feedback','next_topic']),
+                'enrollment'     => $updatedEnrollment,
                 'touched'        => null,
                 'note'           => 'future non-canceled booking with report exists; no propagation as requested.',
             ];
         }
 
-        // 4) 上が無い場合だけ、最初の「reportなし」予約に topic をセット（任意の最小反映）
         $firstNoReport = $future->first(fn($b) => !$b->report);
         if ($firstNoReport) {
             $firstNoReport->topic_id = $nextTopicId;
@@ -167,6 +216,7 @@ class ReportController extends Controller
 
             return [
                 'updated_report' => $report->only(['id','booking_id','status','feedback','next_topic']),
+                'enrollment'     => $updatedEnrollment,
                 'touched'        => [
                     'booking_id' => $firstNoReport->id,
                     'action'     => 'set booking.topic_id because no future non-canceled-with-report exists',
@@ -174,9 +224,9 @@ class ReportController extends Controller
             ];
         }
 
-        // 5) それも無ければ何も変更しない
         return [
             'updated_report' => $report->only(['id','booking_id','status','feedback','next_topic']),
+            'enrollment'     => $updatedEnrollment,
             'touched'        => null,
             'note'           => 'no future target to propagate; nothing else to do.',
         ];

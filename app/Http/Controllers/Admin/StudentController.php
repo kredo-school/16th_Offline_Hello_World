@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -15,15 +16,16 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
+        $courses = Course::select('id', 'title')
+            ->whereNotIn('title', ['title', 'test'])
+            ->orderBy('title')
+            ->get();
         // role_id はあなたの定義に合わせて（例：Student=3）
-        $students = User::where('role_id', 3)
-            ->with(['courses' => function ($q) {
-                // 一覧で使う項目だけに絞る（任意）
-                $q->select('courses.id', 'title');
-            }])
-            ->withCount('courses')          // $row->courses_count を使えるように
+       $students = User::where('role_id', 3)
+            ->with(['courses:id,title'])
             ->orderByDesc('id')
             ->paginate(10);                 // 量が少ないなら ->get() でもOK
+
 
         return view('admin.students.index', compact('students'));
     }

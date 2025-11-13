@@ -6,13 +6,37 @@ use App\Models\User;
 use App\Models\Booking;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 
 class BookingController extends Controller
 {
+   private function currentTeacherOrAbort()
+{
+    $user = Auth::user();
+
+    if (!$user) {
+        abort(403);
+    }
+
+    $roleId   = (int) ($user->role_id ?? 0);
+    $roleName = (string) ($user->role ?? '');
+
+    $isTeacher = ($roleId === 2 || $roleName === 'teacher');
+
+    // 先生本人以外（admin含む）は利用禁止
+    if (!$isTeacher) {
+        abort(403);
+    }
+
+    return $user;
+}
+
    public function store(Request $request)
 {
+    $teacher = $this->currentTeacherOrAbort();
+
     // 配列 times[]（必須）で受ける。クリックもドラッグも配列で来る前提に統一。
     $data = $request->validate([
         'date' => ['required','date_format:Y-m-d'],
@@ -22,7 +46,7 @@ class BookingController extends Controller
     ]);
 
     $duration  = $data['duration_minutes'] ?? 50;
-    $teacherId = Auth::id();
+    $teacherId = $teacher->id;
 
     foreach ($data['times'] as $t) {
         $time = strlen($t) === 5 ? ($t.=':00') : $t; // HH:MM → HH:MM:00 に正規化
@@ -37,6 +61,7 @@ class BookingController extends Controller
 
 public function show(Request $request)
 {
+    $teacher = $this->currentTeacherOrAbort();
     // 期間（date列ベース）
     $startStr = substr((string) $request->query('start'), 0, 10) ?: '1900-01-01';
     $endStr   = substr((string) $request->query('end'),   0, 10) ?: '2100-12-31';
@@ -46,6 +71,7 @@ public function show(Request $request)
             'report:id,booking_id,status',
             'student:id,name',
         ])
+        ->where('teacher_id', $teacher->id)
         ->whereBetween('date', [$startStr, $endStr])
         ->get();
 
@@ -83,7 +109,8 @@ public function show(Request $request)
 // ---- 単体削除（Open のみ物理削除 / Booked はNG）----
     public function destroy($id)
     {
-        $booking = Booking::where('id', $id)->where('teacher_id', Auth::id())->firstOrFail();
+        $teacher = $this->currentTeacherOrAbort();
+        $booking = Booking::where('id', $id)->where('teacher_id', $teacher->id)->firstOrFail();
 
         if ($booking->student_id) {
             return response()->json(['message' => 'This slot is booked. Use cancel endpoint with a reason.'], 422);
@@ -95,6 +122,7 @@ public function show(Request $request)
     // ---- Open の複数削除（ids[] または date/from/to の範囲）----
     public function bulkDestroyOpen(Request $request)
 {
+     $teacher = $this->currentTeacherOrAbort();
     $data = $request->validate([
         'ids'   => ['sometimes','array'],
         'ids.*' => ['integer'],
@@ -108,7 +136,7 @@ public function show(Request $request)
     $nowHms = now($tz)->format('H:i:s');       // 'H:i:s'
 
     $q = Booking::query()
-        ->where('teacher_id', Auth::id())
+        ->where('teacher_id', $teacher->id)
         ->whereNull('student_id');             // Open 限定
 
     // ★ 過去は絶対に消さない（開始が現在より前のものは除外）
@@ -144,12 +172,13 @@ public function show(Request $request)
     // ---- Booked の取り消し（理由必須＋通知＋report更新／予約は削除しない）----
 public function cancelBooked(Request $request, $id)
 {
+    $teacher = $this->currentTeacherOrAbort();
     $data = $request->validate([
         'reason' => ['required','string','max:500'],
     ]);
 
     $booking = Booking::where('id', $id)
-        ->where('teacher_id', Auth::id())
+        ->where('teacher_id', $teacher->id)
         ->firstOrFail();
 
     if (!$booking->student_id) {
@@ -176,5 +205,107 @@ public function cancelBooked(Request $request, $id)
 
     // 予約レコードは削除しない（reports.status でキャンセル扱いを判定）
     return response()->json(['canceled' => true]);
+}
+
+public function move(Request $request, Booking $booking)
+{
+$teacher = $this->currentTeacherOrAbort();
+    // 自分の枠以外は禁止
+    if ($booking->teacher_id !== $teacher->id) {
+        abort(403);
+    }
+
+    // 予約済み or report付きは動かさない（仕様上安全）
+    if (!is_null($booking->student_id) || $booking->report()->exists()) {
+        return response()->json([
+            'message' => 'Only open slots without report can be moved.',
+        ], 422);
+    }
+
+    // 入力チェック（"H:i"で送ってJSと揃える）
+    $data = $request->validate([
+        'date' => ['required', 'date'],
+        'time' => ['required', 'date_format:H:i'],
+    ]);
+
+    // 新しい開始日時
+    $start = Carbon::createFromFormat('Y-m-d H:i', $data['date'].' '.$data['time']);
+
+    if ($start->isPast()) {
+        return response()->json([
+            'message' => 'Cannot move slot to the past.',
+        ], 422);
+    }
+
+    // 同じ先生・同じ日時に既に open slot がないかチェック
+    $exists = Booking::where('teacher_id', $booking->teacher_id)
+        ->where('id', '!=', $booking->id)
+        ->where('date', $data['date'])
+        ->where('time', $data['time'].':00') // 保存形式が H:i:s の場合
+        ->whereNull('student_id')
+        ->exists();
+
+    if ($exists) {
+        return response()->json([
+            'message' => 'Another open slot already exists at that time.',
+        ], 422);
+    }
+
+    // 実際に更新
+    $booking->date = $data['date'];
+    $booking->time = $data['time'].':00'; // DBに合わせて
+    $booking->save();
+
+    return response()->json(['ok' => true]);
+}
+
+public function bulkDestroySelected(Request $request)
+{
+$teacher = $this->currentTeacherOrAbort();
+    // $teacherId = Auth::id();
+
+    $data = $request->validate([
+        'booking_ids'   => ['required','array','min:1'],
+        'booking_ids.*' => ['integer'],
+    ]);
+
+    $count = Booking::where('teacher_id', $teacher->id)
+        ->whereIn('id', $data['booking_ids'])
+        ->whereNull('student_id')   // 予約済みは消さない
+        ->doesntHave('report')      // レポートありも消さない
+        ->delete();
+
+    return response()->json([
+        'ok'    => true,
+        'count' => $count,
+    ]);
+}
+public function purgeFutureOpen(Request $request)
+{
+    $teacher = Auth::user();
+    abort_unless($teacher && (int)$teacher->role_id === 2, 403); // teacherのみ
+
+    // inactive のときだけ動作（誤操作防止）
+    $status = strtolower((string)($teacher->status ?? ''));
+    abort_unless($status === 'inactive', 403);
+
+    // 未来の（今以降）Openスロットを削除
+    $now   = Carbon::now(config('app.timezone', 'Asia/Manila'));
+    $today = $now->toDateString();     // 'YYYY-MM-DD'
+    $nowT  = $now->format('H:i:s');    // 'HH:MM:SS'
+
+    $deleted = DB::table('bookings')
+        ->where('teacher_id', $teacher->id)
+        ->whereNull('student_id')  // Openのみ
+        ->where(function ($q) use ($today, $nowT) {
+            $q->where('date', '>', $today)
+              ->orWhere(function ($q) use ($today, $nowT) {
+                  $q->where('date', '=', $today)
+                    ->where('time', '>=', $nowT);
+              });
+        })
+        ->delete();
+
+    return response()->json(['ok' => true, 'deleted' => $deleted]);
 }
 }

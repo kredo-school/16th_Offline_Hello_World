@@ -9,7 +9,7 @@
         $viewerRoleId = (int) ($viewer->role_id ?? 0);
 
         // 役割フラグ
-        $viewerIsAdmin   = $viewerRoleId === 1 || ($viewer->role ?? null) === 'admin';
+        $viewerIsAdmin = $viewerRoleId === 1 || ($viewer->role ?? null) === 'admin';
         $viewerIsTeacher = $viewerRoleId === 2 || ($viewer->role ?? null) === 'teacher';
 
         // 自分のプロフィールか
@@ -19,7 +19,14 @@
         $canSeePrivate = $viewerIsAdmin || ($viewerIsTeacher && $isOwner);
 
         // 編集可（admin or 自分自身のteacher）
-        $canEdit = ($viewerIsTeacher && $isOwner);
+        $canEdit = $viewerIsTeacher && $isOwner;
+
+        use Illuminate\Support\Facades\Storage;
+
+        // ...既存の権限判定の下あたりに追加
+        $up = ltrim((string) ($user->avatar_path ?? ''), '/');
+        $userHasAvatar = $up !== '' && Storage::disk('public')->exists($up);
+        $userAvatarUrl = $userHasAvatar ? asset('storage/' . $up) : null;
     @endphp
 
     <style>
@@ -172,220 +179,222 @@
 
     <section class="py-4">
         <div class="container profile-container">
-
-            {{-- ===== PROFILE AREA ===== --}}
-            <div class="area-block mb-4">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="area-label">
-                        <i class="fa-regular fa-user"></i>
-                        TEACHER PROFILE
-                    </div>
+            @if (!empty($isInactive) && $isInactive)
+                {{-- ★ inactive teacher 用メッセージ（英語のみ） --}}
+                <div class="alert alert-warning">
+                    This teacher account is currently <strong>inactive</strong>, so profile details, skills, and schedule
+                    are not available.
                 </div>
+            @else
+                {{-- ===== PROFILE AREA ===== --}}
+                <div class="area-block mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="area-label">
+                            <i class="fa-regular fa-user"></i>
+                            TEACHER PROFILE
+                        </div>
+                    </div>
 
-                <div class="area-block-inner">
-                    <div class="card border-0 bg-transparent">
-                        <div class="card-body p-4">
-                            <div class="row g-4 align-items-center">
+                    <div class="area-block-inner">
+                        <div class="card border-0 bg-transparent">
+                            <div class="card-body p-4">
+                                <div class="row g-4 align-items-center">
 
-                                {{-- Avatar --}}
-                                <div class="col-md-4">
-                                    <div class="text-center">
-                                        <div class="profile-avatar-wrap">
-                                            <img
-                                                src="{{ $user->avatar_path ? asset('storage/' . $user->avatar_path) : asset('images/default-avatar.png') }}"
-                                                alt="Profile photo">
-                                        </div>
+                                    {{-- Avatar --}}
+                                    <div class="col-md-4">
+                                        <div class="text-center">
+                                            <div class="profile-avatar-wrap">
+                                                <x-avatar :url="$userAvatarUrl" :name="$user->name" :w="150"
+                                                    :h="180" rounded="md" fit="contain" />
+                                            </div>
 
-                                        @if ($canEdit)
-                                            <form method="POST"
-                                                  action="{{ route('teachers.profile.photo.update', ['user' => $user->id]) }}"
-                                                  enctype="multipart/form-data" class="mb-0">
-                                                @csrf
-                                                @method('PUT')
-                                                <label class="btn btn-outline-secondary btn-sm px-3 rounded-pill mb-0">
-                                                    <input type="file" name="photo" accept="image/*" class="d-none"
-                                                           onchange="this.form.submit()">
-                                                    Change photo
-                                                </label>
-                                            </form>
-                                        @endif
-                                    </div>
-                                </div>
-
-                                {{-- Basic Info --}}
-                                <div class="col-md-8">
-                                    <div class="d-flex align-items-start justify-content-between gap-3 mb-2">
-                                        <div>
-                                            <h2 class="h5 mb-1 fw-semibold">
-                                                {{ $user->name }}
-                                            </h2>
-
-                                            @if ($viewerIsAdmin)
-                                                <span class="badge rounded-pill bg-dark text-white me-1">
-                                                    Admin view
-                                                </span>
-                                            @elseif($isOwner && $viewerIsTeacher)
-                                                <span class="badge rounded-pill bg-success-subtle text-success-emphasis">
-                                                    It’s you
-                                                </span>
+                                            @if ($canEdit)
+                                                <form method="POST"
+                                                    action="{{ route('teachers.profile.photo.update', ['user' => $user->id]) }}"
+                                                    enctype="multipart/form-data" class="mb-0">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <label class="btn btn-outline-secondary btn-sm px-3 rounded-pill mb-0">
+                                                        <input type="file" name="photo" accept="image/*" class="d-none"
+                                                            onchange="this.form.submit()">
+                                                        Change photo
+                                                    </label>
+                                                </form>
                                             @endif
                                         </div>
-
-                                        @if ($canEdit)
-                                            <button class="btn btn-primary btn-sm px-3 rounded-pill d-none d-md-inline-flex"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#editProfileModal">
-                                                Edit
-                                            </button>
-                                        @endif
                                     </div>
 
-                                    {{-- Email --}}
-                                    @if ($canSeePrivate)
-                                        <div class="mb-2">
-                                            <div class="profile-label">Email</div>
-                                            <div class="small text-break">
-                                                {{ $user->email }}
-                                            </div>
-                                        </div>
-                                    @endif
+                                    {{-- Basic Info --}}
+                                    <div class="col-md-8">
+                                        <div class="d-flex align-items-start justify-content-between gap-3 mb-2">
+                                            <div>
+                                                <h2 class="h5 mb-1 fw-semibold">
+                                                    {{ $user->name }}
+                                                </h2>
 
-                                    {{-- About --}}
-                                    <div class="mb-2">
-                                        <div class="profile-label">About</div>
-                                        <div class="small">
-                                            {{ $user->about ?: 'No introduction yet.' }}
-                                        </div>
-                                    </div>
-
-                                    {{-- Meeting URL --}}
-                                    @if ($canSeePrivate)
-                                        <div class="mb-0">
-                                            <div class="profile-label">Meeting URL</div>
-                                            <div class="small">
-                                                @if ($user->meeting_url)
-                                                    <a href="{{ $user->meeting_url }}" target="_blank" rel="noopener"
-                                                       class="link-body-emphasis link-underline-opacity-0 link-underline-opacity-75-hover">
-                                                        {{ $user->meeting_url }}
-                                                    </a>
-                                                @else
-                                                    <span class="text-muted">—</span>
+                                                @if ($viewerIsAdmin)
+                                                    <span class="badge rounded-pill bg-dark text-white me-1">
+                                                        Admin view
+                                                    </span>
+                                                @elseif($isOwner && $viewerIsTeacher)
+                                                    <span
+                                                        class="badge rounded-pill bg-success-subtle text-success-emphasis">
+                                                        It’s you
+                                                    </span>
                                                 @endif
                                             </div>
-                                        </div>
-                                    @endif
 
-                                    {{-- Edit button (mobile) --}}
-                                    @if ($canEdit)
-                                        <div class="d-grid d-md-none mt-3">
-                                            <button class="btn btn-primary btn-sm rounded-pill"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#editProfileModal">
-                                                Edit profile
-                                            </button>
-                                        </div>
-                                    @endif
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- ===== COURSES AREA ===== --}}
-            <div class="area-block">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="area-label">
-                        <i class="fa-solid fa-layer-group"></i>
-                        COURSES
-                    </div>
-                </div>
-
-                <div class="area-block-inner">
-                    <div class="card border-0 bg-transparent">
-                        <div class="card-body p-3 p-md-4">
-
-                            <div class="section-header">
-                                <div class="section-header-title">
-                                    <i class="fa-solid fa-layer-group text-primary"></i>
-                                    <span>Teachable Courses</span>
-                                </div>
-                                <div class="section-header-sub">
-                                    Courses assigned to this teacher
-                                </div>
-                            </div>
-
-                            {{-- Attach form (admin only) --}}
-                            @if ($viewerIsAdmin)
-                                <form method="POST"
-                                      action="{{ route('admin.teachers.courses.attach', $user->id) }}"
-                                      class="row g-2 align-items-center my-3">
-                                    @csrf
-                                    <div class="col-12 col-sm-6 col-md-5">
-                                        <select name="course_id" class="form-select form-select-sm" required>
-                                            <option value="" disabled selected>Add a course…</option>
-                                            @foreach ($allCourses as $c)
-                                                <option value="{{ $c->id }}">{{ $c->title }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-12 col-sm-auto">
-                                        <button type="submit" class="btn btn-primary btn-sm px-3">
-                                            Add
-                                        </button>
-                                    </div>
-                                </form>
-                            @endif
-
-                            {{-- Course list（student Enrolled風のカードリスト） --}}
-                            @if ($courses->count())
-                                <div class="vstack gap-2 mt-2">
-                                    @foreach ($courses as $course)
-                                        <div class="course-item">
-                                            <div class="flex-grow-1">
-                                                <a href="{{ route('courses.show', ['course' => $course->id]) }}"
-                                                   class="course-title text-decoration-none">
-                                                    {{ $course->title }}
-                                                </a>
-                                            </div>
-
-                                            @if ($viewerIsAdmin)
-                                                <div class="course-actions">
-                                                    <form method="POST"
-                                                          action="{{ route('admin.teachers.courses.detach', [$user->id, $course->id]) }}"
-                                                          onsubmit="return confirm('Remove this course from the teacher?');"
-                                                          class="d-inline">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit"
-                                                                class="btn btn-sm btn-outline-danger">
-                                                            Delete
-                                                        </button>
-                                                    </form>
-                                                </div>
+                                            @if ($canEdit)
+                                                <button
+                                                    class="btn btn-primary btn-sm px-3 rounded-pill d-none d-md-inline-flex"
+                                                    data-bs-toggle="modal" data-bs-target="#editProfileModal">
+                                                    Edit
+                                                </button>
                                             @endif
                                         </div>
-                                    @endforeach
-                                </div>
-                            @else
-                                <div class="section-empty mt-2">
-                                    No courses.
-                                </div>
-                            @endif
 
+                                        {{-- Email --}}
+                                        @if ($canSeePrivate)
+                                            <div class="mb-2">
+                                                <div class="profile-label">Email</div>
+                                                <div class="small text-break">
+                                                    {{ $user->email }}
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        {{-- About --}}
+                                        <div class="mb-2">
+                                            <div class="profile-label">About</div>
+                                            <div class="small">
+                                                {{ $user->about ?: 'No introduction yet.' }}
+                                            </div>
+                                        </div>
+
+                                        {{-- Meeting URL --}}
+                                        @if ($canSeePrivate)
+                                            <div class="mb-0">
+                                                <div class="profile-label">Meeting URL</div>
+                                                <div class="small">
+                                                    @if ($user->meeting_url)
+                                                        <a href="{{ $user->meeting_url }}" target="_blank" rel="noopener"
+                                                            class="link-body-emphasis link-underline-opacity-0 link-underline-opacity-75-hover">
+                                                            {{ $user->meeting_url }}
+                                                        </a>
+                                                    @else
+                                                        <span class="text-muted">—</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        {{-- Edit button (mobile) --}}
+                                        @if ($canEdit)
+                                            <div class="d-grid d-md-none mt-3">
+                                                <button class="btn btn-primary btn-sm rounded-pill" data-bs-toggle="modal"
+                                                    data-bs-target="#editProfileModal">
+                                                    Edit profile
+                                                </button>
+                                            </div>
+                                        @endif
+                                    </div>
+
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+
+                {{-- ===== COURSES AREA ===== --}}
+                <div class="area-block">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="area-label">
+                            <i class="fa-solid fa-layer-group"></i>
+                            COURSES
+                        </div>
+                    </div>
+
+                    <div class="area-block-inner">
+                        <div class="card border-0 bg-transparent">
+                            <div class="card-body p-3 p-md-4">
+
+                                <div class="section-header">
+                                    <div class="section-header-title">
+                                        <i class="fa-solid fa-layer-group text-primary"></i>
+                                        <span>Teachable Courses</span>
+                                    </div>
+                                    <div class="section-header-sub">
+                                        Courses assigned to this teacher
+                                    </div>
+                                </div>
+
+                                {{-- Attach form (admin only) --}}
+                                @if ($viewerIsAdmin)
+                                    <form method="POST" action="{{ route('admin.teachers.courses.attach', $user->id) }}"
+                                        class="row g-2 align-items-center my-3">
+                                        @csrf
+                                        <div class="col-12 col-sm-6 col-md-5">
+                                            <select name="course_id" class="form-select form-select-sm" required>
+                                                <option value="" disabled selected>Add a course…</option>
+                                                @foreach ($allCourses as $c)
+                                                    <option value="{{ $c->id }}">{{ $c->title }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-12 col-sm-auto">
+                                            <button type="submit" class="btn btn-primary btn-sm px-3">
+                                                Add
+                                            </button>
+                                        </div>
+                                    </form>
+                                @endif
+
+                                {{-- Course list（student Enrolled風のカードリスト） --}}
+                                @if ($courses->count())
+                                    <div class="vstack gap-2 mt-2">
+                                        @foreach ($courses as $course)
+                                            <div class="course-item">
+                                                <div class="flex-grow-1">
+                                                    <a href="{{ route('courses.show', ['course' => $course->id]) }}"
+                                                        class="course-title text-decoration-none">
+                                                        {{ $course->title }}
+                                                    </a>
+                                                </div>
+
+                                                @if ($viewerIsAdmin)
+                                                    <div class="course-actions">
+                                                        <form method="POST"
+                                                            action="{{ route('admin.teachers.courses.detach', [$user->id, $course->id]) }}"
+                                                            onsubmit="return confirm('Remove this course from the teacher?');"
+                                                            class="d-inline">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                                Delete
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <div class="section-empty mt-2">
+                                        No courses.
+                                    </div>
+                                @endif
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
         </div>
     </section>
 
     {{-- ===== Edit Profile Modal ===== --}}
     @if ($canEdit)
-        <div class="modal fade" id="editProfileModal" tabindex="-1"
-             aria-labelledby="editProfileLabel" aria-hidden="true">
+        <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 rounded-3 shadow-lg">
                     <form method="POST" action="{{ route('teachers.profile.update', $user->id) }}">
@@ -394,40 +403,37 @@
 
                         <div class="modal-header border-0 pb-0">
                             <h5 class="modal-title" id="editProfileLabel">Edit Profile</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                    aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
 
                         <div class="modal-body pt-2">
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Name</label>
                                 <input name="name" type="text" class="form-control"
-                                       value="{{ old('name', $user->name ?? '') }}" required>
+                                    value="{{ old('name', $user->name ?? '') }}" required>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Email</label>
                                 <input name="email" type="email" class="form-control"
-                                       value="{{ old('email', $user->email ?? '') }}" required>
+                                    value="{{ old('email', $user->email ?? '') }}" required>
                             </div>
 
                             <div class="mb-3">
                                 <label class="form-label fw-bold">About</label>
-                                <textarea name="about" rows="4" class="form-control"
-                                          placeholder="Tell us about yourself">{{ old('about', $user->about ?? '') }}</textarea>
+                                <textarea name="about" rows="4" class="form-control" placeholder="Tell us about yourself">{{ old('about', $user->about ?? '') }}</textarea>
                             </div>
 
                             <div class="mb-0">
                                 <label class="form-label fw-bold">Meeting URL</label>
                                 <input name="meeting_url" type="url" class="form-control"
-                                       value="{{ old('meeting_url', $user->meeting_url ?? '') }}"
-                                       placeholder="https://example.com/meet/your-room">
+                                    value="{{ old('meeting_url', $user->meeting_url ?? '') }}"
+                                    placeholder="https://example.com/meet/your-room">
                             </div>
                         </div>
 
                         <div class="modal-footer border-0 justify-content-between">
-                            <button type="button" class="btn btn-light border"
-                                    data-bs-dismiss="modal">
+                            <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
                                 Cancel
                             </button>
                             <button type="submit" class="btn btn-primary px-4">
@@ -438,5 +444,6 @@
                 </div>
             </div>
         </div>
+    @endif
     @endif
 @endsection

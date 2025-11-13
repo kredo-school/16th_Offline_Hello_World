@@ -10,36 +10,58 @@ use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
-   public function show($user_id)
-{
-    $user = User::with([
-        'skills:id,title', // teacher_course 経由のコース
-    ])->findOrFail($user_id);
+  public function show($user_id)
+    {
+    $user = User::findOrFail($user_id);
 
-    $viewer = auth()->user();
-    $viewerRoleId = (int) ($viewer->role_id ?? 0);
-    $viewerIsAdmin = $viewerRoleId === 1 || ($viewer->role ?? null) === 'admin';
+    $roleId   = (int) ($user->role_id ?? 0);
+    $roleName = (string) ($user->role ?? '');
+    $isTeacher = ($roleId === 2 || $roleName === 'teacher');
+    if (!$isTeacher) abort(404);
 
-    $allCourses = collect();
+        // ★ skills は status=1 のコースだけ読み込む
+        $user = User::with([
+            'skills' => function ($q) {
+                $q->where('status', 1)         // 有効コースのみ
+                  ->select('courses.id', 'title'); // 必要なカラムだけ（任意）
+            },
+        ])->findOrFail($user_id);
 
-    if ($viewerIsAdmin) {
-        // すでに紐づいているコースIDを取得（skills は既にロード済み）
-        $assignedIds = $user->skills->pluck('id')->all();
-
-        $allCourses = Course::select('id', 'title')
-            ->when(!empty($assignedIds), function ($q) use ($assignedIds) {
-                $q->whereNotIn('id', $assignedIds);
-            })
-            ->orderBy('title')
-            ->get();
+        if ($user->status !== 'active') {
+        return view('teacher.profile', [
+            'user'       => $user,
+            'isInactive' => true,
+            'courses'    => collect(),
+            'allCourses' => collect(),
+        ]);
     }
 
-    return view('teacher.profile', [
-        'user'       => $user,
-        'courses'    => $user->skills,   // 表示用（既に登録済み）
-        'allCourses' => $allCourses,     // セレクト用（未登録のみ）
-    ]);
-}
+        $viewer = auth()->user();
+        $viewerRoleId = (int) ($viewer->role_id ?? 0);
+        $viewerIsAdmin = $viewerRoleId === 1 || ($viewer->role ?? null) === 'admin';
+
+        $allCourses = collect();
+
+        if ($viewerIsAdmin) {
+            // すでに紐づいているコースID（= status=1 のみ）を取得
+            $assignedIds = $user->skills->pluck('id')->all();
+
+            // ★ 追加候補も status=1 のみ
+            $allCourses = Course::select('id', 'title')
+                ->where('status', 1)
+                ->when(!empty($assignedIds), function ($q) use ($assignedIds) {
+                    $q->whereNotIn('id', $assignedIds);
+                })
+                ->orderBy('title')
+                ->get();
+        }
+
+        return view('teacher.profile', [
+            'user'       => $user,
+            'courses'    => $user->skills,   // status=1 のみ
+            'allCourses' => $allCourses,     // status=1 かつ未登録のみ
+        ]);
+    }
 
 public function update(Request $request, $user_id)
 {

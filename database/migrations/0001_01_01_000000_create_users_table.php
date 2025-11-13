@@ -15,8 +15,12 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
+            $table->string('meeting_url', 2048)->nullable();
+            $table->string('avatar_path')->nullable();
+            $table->enum('status', ['active','inactive'])->default('active');
             $table->string('password');
+            $table->unsignedTinyInteger('role_id')->default(4)->index()->comment('1=admin, 2=teacher, 3=student, 4=basic_user');
+            $table->longText('about')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

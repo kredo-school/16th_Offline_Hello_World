@@ -95,10 +95,20 @@
                     $teacherN = $b->teacher->name ?? 'Teacher';
 
                     // コース画像：storage/public 配下 (例: avatars/xxx.png)
-                    $iconUrl =
-                        $b->course && $b->course->image_url
-                            ? asset('storage/' . ltrim($b->course->image_url, '/'))
-                            : asset('images/placeholder-course.png');
+                             $img = $b->course->image ?? null; // DBに保存している値（パス or データURL想定）
+
+    // 1) data: で始まる → そのまま使う
+    if (is_string($img) && Str::startsWith($img, 'data:image/')) {
+        $iconUrl = $img;
+
+    // 2) ストレージへの相対パス（例: 'courses/xxx.png'）→ asset('storage/...')に変換
+    } elseif (is_string($img) && !empty($img)) {
+        $iconUrl = asset('storage/' . ltrim($img, '/'));
+
+    // 3) 何もなければプレースホルダ
+    } else {
+        $iconUrl = asset('images/placeholder-course.png');
+    }
 
                     $whenStr = $dt->format('D, M j H:i') . '–' . $end->format('H:i');
 

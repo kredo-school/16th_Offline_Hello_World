@@ -16,9 +16,14 @@ class Teacher extends Model
         'active',
     ];
 
-    // 🔥 Courses との多対多リレーション
+    // public function courses()
+    // {
+    //     // ← テーブル名を teacher_course に、キーはデフォルト(teacher_id, course_id)なので省略OK
+    //     return $this->belongsToMany(\App\Models\Course::class, 'teacher_course')->withTimestamps();
+    // }
     public function courses()
-    {
-        return $this->belongsToMany(Course::class);
-    }
+{
+    return $this->belongsToMany(Course::class, 'teacher_course');
+}
+
 }

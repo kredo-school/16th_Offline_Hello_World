@@ -42,7 +42,7 @@
 
             {{-- Reset --}}
             <div class="col-12 col-md-4 d-flex gap-2">
-                <a href="{{ route('teachers.lessonhistory') }}" class="btn btn-outline-secondary">
+                <a href="{{ route('teachers.lessonhistory', Auth::id()) }}" class="btn btn-outline-secondary">
                     Reset
                 </a>
             </div>
@@ -65,7 +65,7 @@
 
             function buildUrl() {
                 const params = new URLSearchParams(new FormData(form));
-                const base = "{{ route('teachers.lessonhistory') }}";
+                const base = "{{ route('teachers.lessonhistory', Auth::id()) }}";
                 const q = params.toString();
                 return q ? `${base}?${q}` : base;
             }
